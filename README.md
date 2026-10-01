@@ -47,7 +47,9 @@ Tests run against a real `mongod` from `mongodb-memory-server` (downloaded on fi
 
 ## Deploy on Render
 
-`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, health check `/health`).
+`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, health check `/health`) on Render's
+free plan. A free service sleeps after 15 minutes without traffic and takes about a minute to wake on the next
+request, and it has no Shell. Switch `plan: free` to `starter` when that matters.
 
 1. **MongoDB Atlas.** Create a cluster and a database user. In Network Access, allow Render's outbound IPs (or
    0.0.0.0/0 to start). Copy the `mongodb+srv://…` string.
@@ -64,7 +66,8 @@ Tests run against a real `mongod` from `mongodb-memory-server` (downloaded on fi
      `COOKIE_SAME_SITE=none`, leave `COOKIE_DOMAIN` empty, and set `WEB_ORIGINS` to the website's exact
      origin, `https://xquery-website.onrender.com` (the Blueprint's starting values). Browsers that block third-party cookies (Safari, and Chrome in some modes)
      will not keep users signed in this way, so move to custom domains before launch.
-5. **Staff.** Register on the website, then run `npm run make-staff -- you@example.com` from a Render Shell.
+5. **Staff.** Put your e-mail in `STAFF_EMAILS`, then register on the website: verifying makes you staff. (Or run
+   `npm run make-staff -- you@example.com` anywhere with `MONGODB_URI` set to the Atlas string.)
 
 Packaged app builds call the product service at `https://api.xquery.io/`, so give the API that custom domain before
 the first release. This service never logs client IPs, as the app's privacy promise for the usage ping requires.

@@ -47,6 +47,8 @@ const EnvSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('Xquery <hello@xquery.io>'),
 
+  /** E-mails that become staff when they sign in or verify (for hosts without a shell, e.g. Render's free plan). */
+  STAFF_EMAILS: list,
   /** Cloudflare Turnstile secret; when set, /auth/register requires a valid turnstileToken. */
   TURNSTILE_SECRET: z.string().optional(),
 
@@ -78,6 +80,7 @@ export interface Config {
   publicKeyBase64: string;
   email: { provider: 'console' | 'resend'; resendApiKey?: string; from: string };
   turnstileSecret?: string;
+  staffEmails: string[];
   releasesRepo: string;
   githubToken?: string;
   rateLimit: { perMinute: number; authPerMinute: number };
@@ -125,6 +128,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     publicKeyBase64: publicKeyBase64(signingKey),
     email: { provider: e.EMAIL_PROVIDER, resendApiKey: e.RESEND_API_KEY, from: e.EMAIL_FROM },
     turnstileSecret: e.TURNSTILE_SECRET || undefined,
+    staffEmails: e.STAFF_EMAILS.map((x) => x.toLowerCase()),
     releasesRepo: e.RELEASES_REPO,
     githubToken: e.GITHUB_TOKEN || undefined,
     rateLimit: { perMinute: e.RATE_LIMIT_PER_MINUTE, authPerMinute: e.AUTH_RATE_LIMIT_PER_MINUTE },
