@@ -7,7 +7,8 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    buildCommand: npm ci && npm run build
+    # NODE_ENV=production makes npm skip devDependencies (TypeScript, @types/node); include them to build, then drop them.
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
