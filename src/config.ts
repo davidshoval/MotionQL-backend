@@ -86,8 +86,33 @@ export interface Config {
   rateLimit: { perMinute: number; authPerMinute: number };
 }
 
+/**
+ * Rebuilds a PEM whose line breaks were lost or turned into spaces or literal \n, as some dashboards
+ * (Render's environment editor) do when a multi-line value is pasted.
+ */
+export function normalizePem(raw: string): string {
+  const text = raw.replace(/\\n/g, '\n').trim();
+  const m = /-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/.exec(text);
+  if (!m || !m[2]!.trim()) {
+    throw new Error('LICENSE_SIGNING_KEY is not a PEM key: paste the whole file, including the -----BEGIN and -----END lines.');
+  }
+  const body = m[2]!.replace(/\s+/g, '');
+  return `-----BEGIN ${m[1]}-----\n${body.match(/.{1,64}/g)!.join('\n')}\n-----END ${m[1]}-----\n`;
+}
+
 export function loadSigningKey(pem: string, passphrase?: string): KeyObject {
-  const key = createPrivateKey(passphrase ? { key: pem, format: 'pem', passphrase } : pem);
+  const normalized = normalizePem(pem);
+  let key: KeyObject;
+  try {
+    key = createPrivateKey(passphrase ? { key: normalized, format: 'pem', passphrase } : normalized);
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === 'ERR_OSSL_BAD_DECRYPT') throw new Error('LICENSE_SIGNING_KEY_PASSPHRASE does not unlock LICENSE_SIGNING_KEY.', { cause: err });
+    if (code === 'ERR_OSSL_CRYPTO_INTERRUPTED_OR_CANCELLED' || /passphrase/i.test(String(err))) {
+      throw new Error('LICENSE_SIGNING_KEY is encrypted: set LICENSE_SIGNING_KEY_PASSPHRASE.', { cause: err });
+    }
+    throw new Error(`LICENSE_SIGNING_KEY could not be read (${code ?? 'unknown error'}): paste the whole PEM file.`, { cause: err });
+  }
   if (key.asymmetricKeyType !== 'ed25519') throw new Error('LICENSE_SIGNING_KEY must be an Ed25519 private key');
   return key;
 }
@@ -106,7 +131,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const e = parsed.data;
   const pem = e.LICENSE_SIGNING_KEY ?? (e.LICENSE_SIGNING_KEY_FILE ? readFileSync(e.LICENSE_SIGNING_KEY_FILE, 'utf8') : undefined);
   if (!pem) throw new Error('Set LICENSE_SIGNING_KEY or LICENSE_SIGNING_KEY_FILE (run `npm run keygen:dev` for a development key).');
-  const signingKey = loadSigningKey(pem.replace(/\\n/g, '\n'), e.LICENSE_SIGNING_KEY_PASSPHRASE);
+  const signingKey = loadSigningKey(pem, e.LICENSE_SIGNING_KEY_PASSPHRASE || undefined);
   if (e.EMAIL_PROVIDER === 'resend' && !e.RESEND_API_KEY) throw new Error('EMAIL_PROVIDER=resend needs RESEND_API_KEY');
   const webUrl = e.WEB_URL.replace(/\/+$/, '');
   return {
