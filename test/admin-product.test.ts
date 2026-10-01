@@ -77,6 +77,17 @@ describe('staff console: the free-year switch', () => {
   });
 });
 
+describe('STAFF_EMAILS', () => {
+  it('makes listed e-mails staff once verified', async () => {
+    t = await makeApp({ env: { STAFF_EMAILS: 'Owner@Xquery.io' } });
+    const owner = await signUp(t, 'owner@xquery.io');
+    expect((await owner.get('/me')).json().user.isStaff).toBe(true);
+    expect((await owner.get('/admin/plans')).statusCode).toBe(200);
+    const other = await signUp(t, 'someone@example.com');
+    expect((await other.get('/admin/plans')).statusCode).toBe(403);
+  });
+});
+
 describe('product service', () => {
   it('serves a manifest the app verifies, re-signing only when something changes', async () => {
     t = await makeApp();

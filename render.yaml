@@ -3,7 +3,8 @@ services:
   - type: web
     name: xquery-api
     runtime: node
-    plan: starter
+    # Free: sleeps after 15 minutes without traffic, about a minute to wake; no Shell (use STAFF_EMAILS).
+    plan: free
     region: frankfurt
     branch: main
     buildCommand: npm ci && npm run build
@@ -48,6 +49,9 @@ services:
       - key: EMAIL_FROM
         value: Xquery <hello@xquery.io>
       - key: TURNSTILE_SECRET
+        sync: false
+      # Your own e-mail(s), comma-separated: they become staff once verified (the free plan has no Shell).
+      - key: STAFF_EMAILS
         sync: false
       - key: RELEASES_REPO
         value: davidshoval/Xquery.io-releases

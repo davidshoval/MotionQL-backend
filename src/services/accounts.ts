@@ -57,6 +57,14 @@ async function consumeEmailToken(ctx: Ctx, token: string, purpose: EmailTokenPur
   return doc.userId;
 }
 
+/** Grants staff to the e-mails listed in STAFF_EMAILS, once their address is verified. */
+async function applyStaffList(ctx: Ctx, user: UserDoc): Promise<UserDoc> {
+  if (user.isStaff || !user.emailVerifiedAt || !ctx.config.staffEmails.includes(user.email)) return user;
+  await ctx.c.users.updateOne({ _id: user._id }, { $set: { isStaff: true, updatedAt: ctx.now() } });
+  await audit(ctx, { id: user._id, email: user.email }, 'staff.grant', { target: { type: 'user', id: user._id, email: user.email }, details: { via: 'STAFF_EMAILS' } });
+  return { ...user, isStaff: true };
+}
+
 async function sendVerification(ctx: Ctx, user: UserDoc): Promise<void> {
   const token = await issueEmailToken(ctx, user._id, 'verify-email');
   const url = `${ctx.config.webUrl}/verify-email?token=${encodeURIComponent(token)}`;
@@ -101,12 +109,13 @@ export async function resendVerification(ctx: Ctx, rawEmail: string): Promise<vo
 /** Marks the e-mail verified and grants the free-plan key (with an e-mail carrying it). */
 export async function verifyEmail(ctx: Ctx, token: string): Promise<UserDoc> {
   const userId = await consumeEmailToken(ctx, token, 'verify-email');
-  const user = await ctx.c.users.findOneAndUpdate(
+  let user = await ctx.c.users.findOneAndUpdate(
     { _id: userId },
     [{ $set: { emailVerifiedAt: { $ifNull: ['$emailVerifiedAt', ctx.now()] }, updatedAt: ctx.now() } }],
     { returnDocument: 'after' },
   );
   if (!user) throw badRequest('invalid_token', 'This link is invalid or has expired.');
+  user = await applyStaffList(ctx, user);
   await audit(ctx, { id: user._id, email: user.email }, 'user.verify_email', { target: { type: 'user', id: user._id, email: user.email } });
   const license = await grantFreeLicense(ctx, user);
   if (license) {
@@ -128,7 +137,7 @@ export async function login(ctx: Ctx, rawEmail: string, password: string): Promi
   const ok = await verifyPassword(user?.passwordHash ?? (await dummyHash()), password);
   if (!user || !ok) throw unauthorized('E-mail or password is not correct.');
   if (!user.emailVerifiedAt) throw new AppError(403, 'email_not_verified', 'Confirm your e-mail first. We can send the link again.');
-  return user;
+  return applyStaffList(ctx, user);
 }
 
 export async function requestPasswordReset(ctx: Ctx, rawEmail: string): Promise<void> {
