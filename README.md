@@ -53,15 +53,16 @@ Tests run against a real `mongod` from `mongodb-memory-server` (downloaded on fi
    0.0.0.0/0 to start). Copy the `mongodb+srv://…` string.
 2. **Signing key.** Generate it offline with the app's `npm run license -- keygen`. Put the public half in the app's
    `publicKey.ts`, and paste the private PEM only into Render's `LICENSE_SIGNING_KEY` secret. Never commit it.
-3. **Render.** New → Blueprint → this repo. Fill in the secrets it asks for: `MONGODB_URI`, `WEB_URL`, `WEB_ORIGINS`,
-   `LICENSE_SIGNING_KEY`, `RESEND_API_KEY`, and optionally `TURNSTILE_SECRET`. Every push to `main` deploys.
+3. **Render.** New → Blueprint → this repo. Fill in the secrets it asks for: `MONGODB_URI`, `LICENSE_SIGNING_KEY`,
+   `RESEND_API_KEY`, and optionally `TURNSTILE_SECRET`. It starts pointed at the website's Render service
+   (`https://xquery-website.onrender.com`). Every push to `main` deploys.
 4. **Domains and cookies.** The session cookie works best when the website and the API share a domain:
    - **Custom domains (recommended):** the website on `xquery.io`, the API on `api.xquery.io` (Render → Settings →
      Custom Domains). Set `COOKIE_DOMAIN=.xquery.io`, `COOKIE_SAME_SITE=lax`, `WEB_URL=https://xquery.io`, and
      `WEB_ORIGINS=https://xquery.io`.
    - **Before that, on `*.onrender.com`:** two onrender.com hosts count as different sites, so set
      `COOKIE_SAME_SITE=none`, leave `COOKIE_DOMAIN` empty, and set `WEB_ORIGINS` to the website's exact
-     `https://<name>.onrender.com`. Browsers that block third-party cookies (Safari, and Chrome in some modes)
+     origin, `https://xquery-website.onrender.com` (the Blueprint's starting values). Browsers that block third-party cookies (Safari, and Chrome in some modes)
      will not keep users signed in this way, so move to custom domains before launch.
 5. **Staff.** Register on the website, then run `npm run make-staff -- you@example.com` from a Render Shell.
 

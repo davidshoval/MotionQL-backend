@@ -23,18 +23,19 @@ services:
       # MongoDB Atlas connection string (allow Render's outbound IPs or 0.0.0.0/0 in Atlas Network Access).
       - key: MONGODB_URI
         sync: false
-      # The website, e.g. https://xquery.io (or https://xquery-web.onrender.com before the custom domain).
+      # Start: the website's Render service (xquery-website, frontend render.yaml).
+      # Once xquery.io and api.xquery.io are custom domains: WEB_URL=https://xquery.io,
+      # COOKIE_DOMAIN=.xquery.io, COOKIE_SAME_SITE=lax.
       - key: WEB_URL
-        sync: false
+        value: https://xquery-website.onrender.com
       # Comma-separated exact origins allowed to call the API with cookies.
       - key: WEB_ORIGINS
-        sync: false
-      # .xquery.io once xquery.io and api.xquery.io are custom domains on Render; leave empty on *.onrender.com.
+        value: https://xquery.io,https://xquery-website.onrender.com
       - key: COOKIE_DOMAIN
-        sync: false
-      # lax with custom domains; none while the site and API are on separate *.onrender.com hosts.
+        value: ""
+      # none while the site and API are separate *.onrender.com hosts; lax with custom domains.
       - key: COOKIE_SAME_SITE
-        value: lax
+        value: none
       # The production Ed25519 private key (PEM), from the app's `npm run license -- keygen`.
       - key: LICENSE_SIGNING_KEY
         sync: false
