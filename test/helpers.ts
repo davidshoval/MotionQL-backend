@@ -20,7 +20,7 @@ export interface TestApp {
 
 let counter = 0;
 
-export async function makeApp(opts: { fetch?: typeof fetch } = {}): Promise<TestApp> {
+export async function makeApp(opts: { fetch?: typeof fetch; env?: Record<string, string> } = {}): Promise<TestApp> {
   const { privateKey } = generateKeyPairSync('ed25519');
   const config = loadConfig({
     NODE_ENV: 'test',
@@ -28,6 +28,7 @@ export async function makeApp(opts: { fetch?: typeof fetch } = {}): Promise<Test
     LICENSE_SIGNING_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
     RATE_LIMIT_PER_MINUTE: '100000',
     AUTH_RATE_LIMIT_PER_MINUTE: '100000',
+    ...opts.env,
   });
   const client = new MongoClient(inject('mongoUri'));
   await client.connect();

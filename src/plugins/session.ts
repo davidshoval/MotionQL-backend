@@ -38,7 +38,7 @@ const cookieOptions = (ctx: Ctx) => ({
   path: '/',
   httpOnly: true,
   secure: ctx.config.cookieSecure,
-  sameSite: 'lax' as const,
+  sameSite: ctx.config.cookieSameSite,
   ...(ctx.config.cookieDomain ? { domain: ctx.config.cookieDomain } : {}),
 });
 

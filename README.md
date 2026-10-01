@@ -45,17 +45,29 @@ npm run lint && npm run typecheck && npm test && npm run build
 Tests run against a real `mongod` from `mongodb-memory-server` (downloaded on first run). Set
 `MONGOMS_SYSTEM_BINARY` to use an installed one, or `TEST_MONGODB_URI` to use a running server.
 
-## Production
+## Deploy on Render
 
-- **Signing key.** Generate it offline with the app's `npm run license -- keygen`, put the public half in the app's
-  `publicKey.ts`, and give this service the private half only through the host's secret store
-  (`LICENSE_SIGNING_KEY`, optionally passphrase-protected). Never commit it.
-- **Settings.** `NODE_ENV=production`, `MONGODB_URI` (Atlas), `WEB_URL=https://xquery.io`,
-  `COOKIE_DOMAIN=.xquery.io`, `EMAIL_PROVIDER=resend` with `RESEND_API_KEY`, `TRUST_PROXY=true` behind a proxy,
-  optionally `TURNSTILE_SECRET`. All settings are in [.env.example](.env.example).
-- **Privacy.** The usage ping must not be logged with client IPs: configure the reverse proxy's access log so it
-  does not record them for `/v1/ping`.
-- A `Dockerfile` is included; the service is stateless apart from MongoDB.
+`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, health check `/health`).
+
+1. **MongoDB Atlas.** Create a cluster and a database user. In Network Access, allow Render's outbound IPs (or
+   0.0.0.0/0 to start). Copy the `mongodb+srv://…` string.
+2. **Signing key.** Generate it offline with the app's `npm run license -- keygen`. Put the public half in the app's
+   `publicKey.ts`, and paste the private PEM only into Render's `LICENSE_SIGNING_KEY` secret. Never commit it.
+3. **Render.** New → Blueprint → this repo. Fill in the secrets it asks for: `MONGODB_URI`, `WEB_URL`, `WEB_ORIGINS`,
+   `LICENSE_SIGNING_KEY`, `RESEND_API_KEY`, and optionally `TURNSTILE_SECRET`. Every push to `main` deploys.
+4. **Domains and cookies.** The session cookie works best when the website and the API share a domain:
+   - **Custom domains (recommended):** the website on `xquery.io`, the API on `api.xquery.io` (Render → Settings →
+     Custom Domains). Set `COOKIE_DOMAIN=.xquery.io`, `COOKIE_SAME_SITE=lax`, `WEB_URL=https://xquery.io`, and
+     `WEB_ORIGINS=https://xquery.io`.
+   - **Before that, on `*.onrender.com`:** two onrender.com hosts count as different sites, so set
+     `COOKIE_SAME_SITE=none`, leave `COOKIE_DOMAIN` empty, and set `WEB_ORIGINS` to the website's exact
+     `https://<name>.onrender.com`. Browsers that block third-party cookies (Safari, and Chrome in some modes)
+     will not keep users signed in this way, so move to custom domains before launch.
+5. **Staff.** Register on the website, then run `npm run make-staff -- you@example.com` from a Render Shell.
+
+Packaged app builds call the product service at `https://api.xquery.io/`, so give the API that custom domain before
+the first release. This service never logs client IPs, as the app's privacy promise for the usage ping requires.
+A `Dockerfile` is included too, if you ever move off Render's Node runtime.
 
 ## Not built yet
 

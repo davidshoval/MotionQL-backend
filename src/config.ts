@@ -30,6 +30,11 @@ const EnvSchema = z.object({
   WEB_ORIGINS: list,
   /** Cookie domain shared by xquery.io and api.xquery.io, e.g. .xquery.io. Empty = host-only cookie. */
   COOKIE_DOMAIN: z.string().optional(),
+  /**
+   * lax (default) when the site and the API share a registrable domain (xquery.io + api.xquery.io).
+   * none when they do not, e.g. two *.onrender.com hosts before custom domains are set up (needs HTTPS).
+   */
+  COOKIE_SAME_SITE: z.enum(['lax', 'none']).default('lax'),
   SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 
   /** Ed25519 private key (PEM) that signs license keys and the manifest. Or LICENSE_SIGNING_KEY_FILE. */
@@ -67,6 +72,7 @@ export interface Config {
   webOrigins: string[];
   cookieDomain?: string;
   cookieSecure: boolean;
+  cookieSameSite: 'lax' | 'none';
   sessionDays: number;
   signingKey: KeyObject;
   publicKeyBase64: string;
@@ -111,7 +117,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webUrl,
     webOrigins: e.WEB_ORIGINS.length ? e.WEB_ORIGINS : [new URL(webUrl).origin],
     cookieDomain: e.COOKIE_DOMAIN || undefined,
-    cookieSecure: e.NODE_ENV === 'production',
+    // SameSite=None is only accepted on Secure cookies.
+    cookieSecure: e.NODE_ENV === 'production' || e.COOKIE_SAME_SITE === 'none',
+    cookieSameSite: e.COOKIE_SAME_SITE,
     sessionDays: e.SESSION_DAYS,
     signingKey,
     publicKeyBase64: publicKeyBase64(signingKey),

@@ -115,6 +115,21 @@ describe('registration and the free key', () => {
     expect((await client.post('/auth/verify-email', { token: tokenFrom(t.mailer.last('fay@example.com')!.text) })).statusCode).toBe(200);
   });
 
+  it('sets a SameSite=Lax cookie by default and SameSite=None; Secure when the site is on another domain', async () => {
+    await signUp(t, 'lax@example.com');
+    const login = await t.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://xquery.io' }, payload: { email: 'lax@example.com', password: 'correct horse battery' } });
+    expect(login.cookies[0]).toMatchObject({ name: 'xq_session', sameSite: 'Lax', httpOnly: true });
+
+    const other = await makeApp({ env: { COOKIE_SAME_SITE: 'none' } });
+    try {
+      await signUp(other, 'none@example.com');
+      const res = await other.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://xquery.io' }, payload: { email: 'none@example.com', password: 'correct horse battery' } });
+      expect(res.cookies[0]).toMatchObject({ name: 'xq_session', sameSite: 'None', secure: true, httpOnly: true });
+    } finally {
+      await other.close();
+    }
+  });
+
   it('refuses writes from a site that is not the website', async () => {
     const res = await t.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://evil.example' }, payload: { email: 'a@b.co', password: 'x' } });
     expect(res.statusCode).toBe(403);

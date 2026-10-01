@@ -5,7 +5,8 @@ Base URL `https://api.xquery.io` (development `http://localhost:4000`). The mach
 
 ## Conventions
 
-- **Session.** Signing in sets an httpOnly cookie `xq_session` (Secure in production, SameSite=Lax, `Domain=COOKIE_DOMAIN`,
+- **Session.** Signing in sets an httpOnly cookie `xq_session` (Secure in production, SameSite=Lax, or None when
+  `COOKIE_SAME_SITE=none` for a site on another domain such as `*.onrender.com`, `Domain=COOKIE_DOMAIN`,
   e.g. `.xquery.io`, so xquery.io and api.xquery.io share it). Browser calls use `fetch(url, { credentials: 'include' })`.
   Sessions last 30 days.
 - **Bodies** are JSON. A write from a browser must come from an origin in `WEB_ORIGINS`; anything else gets

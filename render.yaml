@@ -1,0 +1,52 @@
+# Render Blueprint: New → Blueprint → pick this repo. Secrets marked `sync: false` are asked for on first deploy.
+services:
+  - type: web
+    name: xquery-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Render terminates TLS in front of the service; trust it for client IPs (rate limits).
+      - key: TRUST_PROXY
+        value: "true"
+      - key: MONGODB_DB
+        value: xquery
+      # MongoDB Atlas connection string (allow Render's outbound IPs or 0.0.0.0/0 in Atlas Network Access).
+      - key: MONGODB_URI
+        sync: false
+      # The website, e.g. https://xquery.io (or https://xquery-web.onrender.com before the custom domain).
+      - key: WEB_URL
+        sync: false
+      # Comma-separated exact origins allowed to call the API with cookies.
+      - key: WEB_ORIGINS
+        sync: false
+      # .xquery.io once xquery.io and api.xquery.io are custom domains on Render; leave empty on *.onrender.com.
+      - key: COOKIE_DOMAIN
+        sync: false
+      # lax with custom domains; none while the site and API are on separate *.onrender.com hosts.
+      - key: COOKIE_SAME_SITE
+        value: lax
+      # The production Ed25519 private key (PEM), from the app's `npm run license -- keygen`.
+      - key: LICENSE_SIGNING_KEY
+        sync: false
+      - key: LICENSE_SIGNING_KEY_PASSPHRASE
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Xquery <hello@xquery.io>
+      - key: TURNSTILE_SECRET
+        sync: false
+      - key: RELEASES_REPO
+        value: davidshoval/Xquery.io-releases
