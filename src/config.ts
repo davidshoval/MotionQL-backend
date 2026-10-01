@@ -1,0 +1,124 @@
+import { createPrivateKey, createPublicKey } from 'node:crypto';
+import type { KeyObject } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { z } from 'zod';
+
+const bool = z
+  .enum(['true', 'false', '1', '0', ''])
+  .optional()
+  .transform((v) => v === 'true' || v === '1');
+
+const list = z
+  .string()
+  .optional()
+  .transform((v) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  HOST: z.string().default('0.0.0.0'),
+  PORT: z.coerce.number().int().positive().default(4000),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  /** Behind a proxy (Fly, Render, a load balancer): trust X-Forwarded-For for rate limits. */
+  TRUST_PROXY: bool,
+
+  MONGODB_URI: z.string().min(1).default('mongodb://127.0.0.1:27017'),
+  MONGODB_DB: z.string().min(1).default('xquery'),
+
+  /** Public website origin used in e-mail links, e.g. https://xquery.io */
+  WEB_URL: z.string().url().default('http://localhost:3000'),
+  /** Origins allowed to call the API with cookies. Defaults to WEB_URL's origin. */
+  WEB_ORIGINS: list,
+  /** Cookie domain shared by xquery.io and api.xquery.io, e.g. .xquery.io. Empty = host-only cookie. */
+  COOKIE_DOMAIN: z.string().optional(),
+  SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+
+  /** Ed25519 private key (PEM) that signs license keys and the manifest. Or LICENSE_SIGNING_KEY_FILE. */
+  LICENSE_SIGNING_KEY: z.string().optional(),
+  LICENSE_SIGNING_KEY_FILE: z.string().optional(),
+  LICENSE_SIGNING_KEY_PASSPHRASE: z.string().optional(),
+
+  /** E-mail: "console" logs messages (development); "resend" sends through Resend. */
+  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default('Xquery <hello@xquery.io>'),
+
+  /** Cloudflare Turnstile secret; when set, /auth/register requires a valid turnstileToken. */
+  TURNSTILE_SECRET: z.string().optional(),
+
+  /** Public GitHub repo whose latest release is the download source. */
+  RELEASES_REPO: z.string().regex(/^[\w.-]+\/[\w.-]+$/).default('davidshoval/Xquery.io-releases'),
+  /** Optional token for the GitHub API (raises the rate limit); read-only, public repos only. */
+  GITHUB_TOKEN: z.string().optional(),
+
+  /** Requests per minute per IP, overall and for sign-in style endpoints. */
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(300),
+  AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
+});
+
+export interface Config {
+  env: 'development' | 'production' | 'test';
+  host: string;
+  port: number;
+  logLevel: string;
+  trustProxy: boolean;
+  mongoUri: string;
+  mongoDb: string;
+  webUrl: string;
+  webOrigins: string[];
+  cookieDomain?: string;
+  cookieSecure: boolean;
+  sessionDays: number;
+  signingKey: KeyObject;
+  publicKeyBase64: string;
+  email: { provider: 'console' | 'resend'; resendApiKey?: string; from: string };
+  turnstileSecret?: string;
+  releasesRepo: string;
+  githubToken?: string;
+  rateLimit: { perMinute: number; authPerMinute: number };
+}
+
+export function loadSigningKey(pem: string, passphrase?: string): KeyObject {
+  const key = createPrivateKey(passphrase ? { key: pem, format: 'pem', passphrase } : pem);
+  if (key.asymmetricKeyType !== 'ed25519') throw new Error('LICENSE_SIGNING_KEY must be an Ed25519 private key');
+  return key;
+}
+
+/** The same base64 SPKI line the app keeps in src/main/licensing/publicKey.ts. */
+export function publicKeyBase64(privateKey: KeyObject): string {
+  return createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).toString('base64');
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const parsed = EnvSchema.safeParse(env);
+  if (!parsed.success) {
+    const problems = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    throw new Error(`Invalid configuration: ${problems}`);
+  }
+  const e = parsed.data;
+  const pem = e.LICENSE_SIGNING_KEY ?? (e.LICENSE_SIGNING_KEY_FILE ? readFileSync(e.LICENSE_SIGNING_KEY_FILE, 'utf8') : undefined);
+  if (!pem) throw new Error('Set LICENSE_SIGNING_KEY or LICENSE_SIGNING_KEY_FILE (run `npm run keygen:dev` for a development key).');
+  const signingKey = loadSigningKey(pem.replace(/\\n/g, '\n'), e.LICENSE_SIGNING_KEY_PASSPHRASE);
+  if (e.EMAIL_PROVIDER === 'resend' && !e.RESEND_API_KEY) throw new Error('EMAIL_PROVIDER=resend needs RESEND_API_KEY');
+  const webUrl = e.WEB_URL.replace(/\/+$/, '');
+  return {
+    env: e.NODE_ENV,
+    host: e.HOST,
+    port: e.PORT,
+    logLevel: e.LOG_LEVEL,
+    trustProxy: e.TRUST_PROXY,
+    mongoUri: e.MONGODB_URI,
+    mongoDb: e.MONGODB_DB,
+    webUrl,
+    webOrigins: e.WEB_ORIGINS.length ? e.WEB_ORIGINS : [new URL(webUrl).origin],
+    cookieDomain: e.COOKIE_DOMAIN || undefined,
+    cookieSecure: e.NODE_ENV === 'production',
+    sessionDays: e.SESSION_DAYS,
+    signingKey,
+    publicKeyBase64: publicKeyBase64(signingKey),
+    email: { provider: e.EMAIL_PROVIDER, resendApiKey: e.RESEND_API_KEY, from: e.EMAIL_FROM },
+    turnstileSecret: e.TURNSTILE_SECRET || undefined,
+    releasesRepo: e.RELEASES_REPO,
+    githubToken: e.GITHUB_TOKEN || undefined,
+    rateLimit: { perMinute: e.RATE_LIMIT_PER_MINUTE, authPerMinute: e.AUTH_RATE_LIMIT_PER_MINUTE },
+  };
+}
