@@ -132,6 +132,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const pem = e.LICENSE_SIGNING_KEY ?? (e.LICENSE_SIGNING_KEY_FILE ? readFileSync(e.LICENSE_SIGNING_KEY_FILE, 'utf8') : undefined);
   if (!pem) throw new Error('Set LICENSE_SIGNING_KEY or LICENSE_SIGNING_KEY_FILE (run `npm run keygen:dev` for a development key).');
   const signingKey = loadSigningKey(pem, e.LICENSE_SIGNING_KEY_PASSPHRASE || undefined);
+  if (e.NODE_ENV === 'production' && !env.MONGODB_URI) {
+    throw new Error('Set MONGODB_URI to your MongoDB Atlas connection string (mongodb+srv://…).');
+  }
   if (e.EMAIL_PROVIDER === 'resend' && !e.RESEND_API_KEY) throw new Error('EMAIL_PROVIDER=resend needs RESEND_API_KEY');
   const webUrl = e.WEB_URL.replace(/\/+$/, '');
   return {

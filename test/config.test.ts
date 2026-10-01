@@ -20,3 +20,12 @@ describe('loadSigningKey', () => {
     expect(() => loadSigningKey(privateKey.split('\n').slice(1, -2).join('\n'), 'right')).toThrow(/BEGIN and -----END/);
   });
 });
+
+describe('loadConfig', () => {
+  it('asks for MONGODB_URI in production instead of falling back to localhost', async () => {
+    const { loadConfig } = await import('../src/config.js');
+    const env = { NODE_ENV: 'production', LICENSE_SIGNING_KEY: privateKey, LICENSE_SIGNING_KEY_PASSPHRASE: 'right' };
+    expect(() => loadConfig(env)).toThrow(/Set MONGODB_URI/);
+    expect(loadConfig({ ...env, MONGODB_URI: 'mongodb+srv://u:p@example.net' }).mongoUri).toContain('example.net');
+  });
+});
