@@ -65,7 +65,7 @@ export interface IssueOptions {
   actor?: Pick<Actor, 'id' | 'email'>;
 }
 
-/** Signs a one-seat key in the app's XQ1 format and stores it. */
+/** Signs a one-seat key in the app's MQL1 format and stores it. */
 export async function issueLicense(ctx: Ctx, opts: IssueOptions): Promise<LicenseDoc> {
   const now = ctx.now();
   const licenseId = newId('lic');

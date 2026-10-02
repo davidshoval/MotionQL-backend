@@ -8,7 +8,7 @@ Every endpoint is listed in [docs/API.md](docs/API.md); `GET /openapi.json` serv
 
 ## How licensing works
 
-The app verifies keys offline: a key is `XQ1.<payload>.<Ed25519 signature>` and the app embeds the public key.
+The app verifies keys offline: a key is `MQL1.<payload>.<Ed25519 signature>` and the app embeds the public key.
 This service holds the private key and signs one key per person:
 
 - **Free plan.** When a user confirms their e-mail they get a key, e-mailed and shown on `/account`. Today that is a

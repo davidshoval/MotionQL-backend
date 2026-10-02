@@ -62,7 +62,7 @@ Base URL `https://api.motionql.com` (development `http://localhost:4000`). The m
 | `GET /plans/free` | `{enabled, edition, features, durationDays, renewable}`, public, for pricing and sign-up copy |
 
 `license` = `{licenseId, key, edition, features, customer, email, seats, issuedAt, expiresAt, status, source, revokedAt?, team?: {id, name}}`.
-`key` is the full `XQ1.…` key the user pastes into Settings → License. `status` is `active`, `expired`, `revoked` or
+`key` is the full `MQL1.…` key the user pastes into Settings → License. `status` is `active`, `expired`, `revoked` or
 `replaced` (reissued). `source` is `free`, `team` or `staff`.
 
 ## Downloads
@@ -125,8 +125,8 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 
 Exactly as the app's `docs/PRODUCT_SERVICE.md` describes:
 
-- `GET /v1/manifest`: the `XQM1.…` signed token, `text/plain`. Re-signed with a newer `issuedAt` only when its content
-  changes. With `includeRevocations` on, it carries `revokedLicenses`: `sha256("xquery-license-id:" + licenseId)` of
+- `GET /v1/manifest`: the `MQLM1.…` signed token, `text/plain`. Re-signed with a newer `issuedAt` only when its content
+  changes. With `includeRevocations` on, it carries `revokedLicenses`: `sha256("motionql-license-id:" + licenseId)` of
   every revoked key that has not expired. Leave it off until the app release that understands the field ships,
   because older apps refuse a manifest with unknown keys.
 - `POST /v1/ping`: the anonymous usage ping. Unknown fields are refused; only `firstSeen`/`lastSeen` and the ping's

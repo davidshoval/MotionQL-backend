@@ -43,9 +43,9 @@ describe('registration and the free key', () => {
     // The key verifies with the app's own code and the matching public key...
     const result = verifyLicense(lic.key, t.ctx.config.publicKeyBase64);
     expect(result.ok).toBe(true);
-    // ...and independently: XQ1.<base64url payload>.<base64url Ed25519 signature over the payload bytes>.
+    // ...and independently: MQL1.<base64url payload>.<base64url Ed25519 signature over the payload bytes>.
     const [prefix, payload, sig] = lic.key.split('.');
-    expect(prefix).toBe('XQ1');
+    expect(prefix).toBe('MQL1');
     const pub = createPublicKey({ key: Buffer.from(t.ctx.config.publicKeyBase64, 'base64'), format: 'der', type: 'spki' });
     expect(verify(null, Buffer.from(payload, 'base64url'), pub, Buffer.from(sig, 'base64url'))).toBe(true);
     expect(Object.keys(JSON.parse(Buffer.from(payload, 'base64url').toString())).sort()).toEqual(

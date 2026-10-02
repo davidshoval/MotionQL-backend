@@ -3,13 +3,13 @@ import type { KeyObject } from 'node:crypto';
 import type { LicenseEdition, LicensePayload } from './types.js';
 
 /**
- * Copied from the desktop app (Xquery.io-Platform src/main/licensing/licenseFormat.ts as of PR #51).
+ * Copied from the desktop app (motionql-platform src/main/licensing/licenseFormat.ts as of PR #51).
  * Keep it in sync apart from imports: the app verifies keys with this exact code.
  *
- * License key: `XQ1.<base64url(payload JSON)>.<base64url(Ed25519 signature of those exact bytes)>`.
+ * License key: `MQL1.<base64url(payload JSON)>.<base64url(Ed25519 signature of those exact bytes)>`.
  * Verified offline with the public key embedded in the app; nothing is sent anywhere.
  */
-export const LICENSE_PREFIX = 'XQ1';
+export const LICENSE_PREFIX = 'MQL1';
 export const MAX_LICENSE_KEY_LENGTH = 16 * 1024;
 
 const EDITIONS: readonly LicenseEdition[] = ['trial', 'pro', 'enterprise'];
@@ -25,7 +25,7 @@ export type VerifyResult =
   | { ok: false; reason: VerifyFailure; detail: string };
 
 export const VERIFY_MESSAGES: Record<VerifyFailure, string> = {
-  malformed: 'This is not an XQuery license key.',
+  malformed: 'This is not a MotionQL license key.',
   'bad-signature': 'The license key signature is not valid (it was changed, or it was not issued for this app).',
   'invalid-payload': 'The license key is signed but its contents are not valid.',
 };
@@ -121,9 +121,9 @@ export function decodeUnverified(key: string): unknown {
 }
 
 /**
- * `sha256("xquery-license-id:" + licenseId)` in hex: how a license is named outside the app (the usage ping, and the
+ * `sha256("motionql-license-id:" + licenseId)` in hex: how a license is named outside the app (the usage ping, and the
  * manifest's revokedLicenses). The vendor can match it to its records; nobody else learns the id.
  */
 export function licenseHash(licenseId: string): string {
-  return createHash('sha256').update(`xquery-license-id:${licenseId}`, 'utf8').digest('hex');
+  return createHash('sha256').update(`motionql-license-id:${licenseId}`, 'utf8').digest('hex');
 }

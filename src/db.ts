@@ -85,10 +85,10 @@ export interface LicenseDoc {
   userId?: string;
   teamId?: string;
   source: LicenseSource;
-  /** The full XQ1 key; Ed25519 is deterministic, so this is exactly what signing the payload gives again. */
+  /** The full MQL1 key; Ed25519 is deterministic, so this is exactly what signing the payload gives again. */
   key: string;
   payload: LicensePayload;
-  /** sha256("xquery-license-id:" + licenseId): what the app sends in its ping and the manifest lists when revoked. */
+  /** sha256("motionql-license-id:" + licenseId): what the app sends in its ping and the manifest lists when revoked. */
   hash: string;
   issuedAt: Date;
   expiresAt: Date;
