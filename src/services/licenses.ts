@@ -51,7 +51,7 @@ export function licenseView(doc: LicenseDoc, now: Date, teamName?: string): Lice
 }
 
 /** The app limits customer to 200 characters with no control characters. */
-const customerName = (value: string) => value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || 'Xquery user';
+const customerName = (value: string) => value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || 'MotionQL user';
 
 export interface IssueOptions {
   source: LicenseSource;

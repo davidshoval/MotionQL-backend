@@ -64,7 +64,7 @@ export function clearDownloadCache() {
 export async function latestRelease(ctx: Ctx): Promise<LatestRelease> {
   const now = ctx.now().getTime();
   if (cache && now - cache.at < CACHE_MS) return cache.value;
-  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'xquery-backend' };
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'motionql-backend' };
   if (ctx.config.githubToken) headers.authorization = `Bearer ${ctx.config.githubToken}`;
   const res = await ctx.fetch(`https://api.github.com/repos/${ctx.config.releasesRepo}/releases/latest`, { headers, signal: AbortSignal.timeout(10_000) });
   if (res.status === 404) throw new AppError(404, 'no_release', 'No release has been published yet.');
@@ -76,7 +76,7 @@ export async function latestRelease(ctx: Ctx): Promise<LatestRelease> {
   const sumsAsset = release.assets.find((a) => /^SHA256SUMS(\.txt)?$/i.test(a.name));
   let sums = new Map<string, string>();
   if (sumsAsset) {
-    const sumsRes = await ctx.fetch(sumsAsset.browser_download_url, { headers: { 'user-agent': 'xquery-backend' }, signal: AbortSignal.timeout(10_000) });
+    const sumsRes = await ctx.fetch(sumsAsset.browser_download_url, { headers: { 'user-agent': 'motionql-backend' }, signal: AbortSignal.timeout(10_000) });
     if (sumsRes.ok) sums = parseSums(await sumsRes.text());
   }
   const files: DownloadFile[] = release.assets.flatMap((a) => {

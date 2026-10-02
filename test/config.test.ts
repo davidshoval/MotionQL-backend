@@ -37,6 +37,6 @@ describe('e-mail settings', () => {
     expect(() => loadConfig(base)).toThrow(/SMTP_USER and SMTP_PASS/);
     const { email } = loadConfig({ ...base, SMTP_USER: 'me@gmail.com', SMTP_PASS: 'abcd efgh ijkl mnop' });
     expect(email.smtp).toEqual({ host: 'smtp.gmail.com', port: 465, user: 'me@gmail.com', pass: 'abcdefghijklmnop' });
-    expect(email.from).toBe('Xquery <me@gmail.com>');
+    expect(email.from).toBe('MotionQL <me@gmail.com>');
   });
 });

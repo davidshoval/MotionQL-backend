@@ -138,7 +138,7 @@ export const teamRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
     const csv = await auditCsv(ctx, access.team._id);
     return reply
       .header('content-type', 'text/csv; charset=utf-8')
-      .header('content-disposition', `attachment; filename="xquery-team-audit-${access.team._id}.csv"`)
+      .header('content-disposition', `attachment; filename="motionql-team-audit-${access.team._id}.csv"`)
       .send(csv);
   });
 

@@ -15,4 +15,4 @@ export async function verifyPassword(passwordHash: string, password: string): Pr
 
 /** A real hash to verify against when the e-mail is unknown, so login timing does not reveal accounts. */
 let dummy: Promise<string> | undefined;
-export const dummyHash = () => (dummy ??= hashPassword('not-a-real-password-xquery'));
+export const dummyHash = () => (dummy ??= hashPassword('not-a-real-password-motionql'));

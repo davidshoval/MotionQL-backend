@@ -8,7 +8,7 @@ import type { Ctx } from '../src/context.js';
 import { collections, ensureIndexes } from '../src/db.js';
 import { MemoryMailer } from '../src/services/email.js';
 
-export const WEB = 'https://xquery.io';
+export const WEB = 'https://motionql.com';
 
 export interface TestApp {
   app: FastifyInstance;

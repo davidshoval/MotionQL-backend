@@ -4,6 +4,7 @@ import type { UserDoc } from '../db.js';
 import { forbidden, unauthorized } from '../errors.js';
 import { createSession, userForSession } from '../services/accounts.js';
 
+// Cookie name kept from the Xquery name: renaming it would sign everyone out.
 export const SESSION_COOKIE = 'xq_session';
 
 declare module 'fastify' {
