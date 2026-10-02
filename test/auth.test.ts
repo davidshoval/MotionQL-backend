@@ -24,7 +24,7 @@ describe('registration and the free key', () => {
     expect((await client.post('/auth/login', { email: 'ada@example.com', password: 'correct horse battery' })).json().error.code).toBe('email_not_verified');
 
     const mail = t.mailer.last('ada@example.com')!;
-    expect(mail.text).toContain('https://xquery.io/verify-email?token=');
+    expect(mail.text).toContain('https://motionql.com/verify-email?token=');
     const verified = await client.post('/auth/verify-email', { token: tokenFrom(mail.text) });
     expect(verified.statusCode).toBe(200);
     expect(client.cookie).toBeDefined();
@@ -43,9 +43,9 @@ describe('registration and the free key', () => {
     // The key verifies with the app's own code and the matching public key...
     const result = verifyLicense(lic.key, t.ctx.config.publicKeyBase64);
     expect(result.ok).toBe(true);
-    // ...and independently: XQ1.<base64url payload>.<base64url Ed25519 signature over the payload bytes>.
+    // ...and independently: MQL1.<base64url payload>.<base64url Ed25519 signature over the payload bytes>.
     const [prefix, payload, sig] = lic.key.split('.');
-    expect(prefix).toBe('XQ1');
+    expect(prefix).toBe('MQL1');
     const pub = createPublicKey({ key: Buffer.from(t.ctx.config.publicKeyBase64, 'base64'), format: 'der', type: 'spki' });
     expect(verify(null, Buffer.from(payload, 'base64url'), pub, Buffer.from(sig, 'base64url'))).toBe(true);
     expect(Object.keys(JSON.parse(Buffer.from(payload, 'base64url').toString())).sort()).toEqual(
@@ -117,14 +117,14 @@ describe('registration and the free key', () => {
 
   it('sets a SameSite=Lax cookie by default and SameSite=None; Secure when the site is on another domain', async () => {
     await signUp(t, 'lax@example.com');
-    const login = await t.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://xquery.io' }, payload: { email: 'lax@example.com', password: 'correct horse battery' } });
-    expect(login.cookies[0]).toMatchObject({ name: 'xq_session', sameSite: 'Lax', httpOnly: true });
+    const login = await t.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://motionql.com' }, payload: { email: 'lax@example.com', password: 'correct horse battery' } });
+    expect(login.cookies[0]).toMatchObject({ name: 'mq_session', sameSite: 'Lax', httpOnly: true });
 
     const other = await makeApp({ env: { COOKIE_SAME_SITE: 'none' } });
     try {
       await signUp(other, 'none@example.com');
-      const res = await other.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://xquery.io' }, payload: { email: 'none@example.com', password: 'correct horse battery' } });
-      expect(res.cookies[0]).toMatchObject({ name: 'xq_session', sameSite: 'None', secure: true, httpOnly: true });
+      const res = await other.app.inject({ method: 'POST', url: '/auth/login', headers: { origin: 'https://motionql.com' }, payload: { email: 'none@example.com', password: 'correct horse battery' } });
+      expect(res.cookies[0]).toMatchObject({ name: 'mq_session', sameSite: 'None', secure: true, httpOnly: true });
     } finally {
       await other.close();
     }

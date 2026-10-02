@@ -51,7 +51,7 @@ export function licenseView(doc: LicenseDoc, now: Date, teamName?: string): Lice
 }
 
 /** The app limits customer to 200 characters with no control characters. */
-const customerName = (value: string) => value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || 'Xquery user';
+const customerName = (value: string) => value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || 'MotionQL user';
 
 export interface IssueOptions {
   source: LicenseSource;
@@ -65,7 +65,7 @@ export interface IssueOptions {
   actor?: Pick<Actor, 'id' | 'email'>;
 }
 
-/** Signs a one-seat key in the app's XQ1 format and stores it. */
+/** Signs a one-seat key in the app's MQL1 format and stores it. */
 export async function issueLicense(ctx: Ctx, opts: IssueOptions): Promise<LicenseDoc> {
   const now = ctx.now();
   const licenseId = newId('lic');

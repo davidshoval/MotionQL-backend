@@ -1,6 +1,8 @@
 # Render Blueprint: New → Blueprint → pick this repo. Secrets marked `sync: false` are asked for on first deploy.
 services:
   - type: web
+    # Service name kept from before the MotionQL rename: renaming a Blueprint service makes Render create a new
+    # service with a new URL and without its secret env vars.
     name: xquery-api
     runtime: node
     # Free: sleeps after 15 minutes without traffic, about a minute to wake; no Shell (use STAFF_EMAILS).
@@ -21,18 +23,18 @@ services:
       - key: TRUST_PROXY
         value: "true"
       - key: MONGODB_DB
-        value: xquery
+        value: motionql
       # MongoDB Atlas connection string (allow Render's outbound IPs or 0.0.0.0/0 in Atlas Network Access).
       - key: MONGODB_URI
         sync: false
-      # Start: the website's Render service (xquery-website, frontend render.yaml).
-      # Once xquery.io and api.xquery.io are custom domains: WEB_URL=https://xquery.io,
-      # COOKIE_DOMAIN=.xquery.io, COOKIE_SAME_SITE=lax.
+      # Start: the website's Render service (xquery-website, motionql-frontend render.yaml; Render service names stay).
+      # Once motionql.com and api.motionql.com are custom domains: WEB_URL=https://motionql.com,
+      # COOKIE_DOMAIN=.motionql.com, COOKIE_SAME_SITE=lax.
       - key: WEB_URL
         value: https://xquery-website.onrender.com
       # Comma-separated exact origins allowed to call the API with cookies.
       - key: WEB_ORIGINS
-        value: https://xquery.io,https://xquery-website.onrender.com
+        value: https://motionql.com,https://www.motionql.com,https://xquery-website.onrender.com
       - key: COOKIE_DOMAIN
         value: ""
       # none while the site and API are separate *.onrender.com hosts; lax with custom domains.
@@ -43,7 +45,7 @@ services:
         sync: false
       - key: LICENSE_SIGNING_KEY_PASSPHRASE
         sync: false
-      # smtp + a Gmail address and app password needs no domain; resend once xquery.io is verified there.
+      # smtp + a Gmail address and app password needs no domain; resend once motionql.com is verified there.
       - key: EMAIL_PROVIDER
         value: smtp
       - key: SMTP_USER
@@ -52,7 +54,7 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
-      # Optional; defaults to "Xquery <SMTP_USER>" with smtp.
+      # Optional; defaults to "MotionQL <SMTP_USER>" with smtp.
       - key: EMAIL_FROM
         sync: false
       - key: TURNSTILE_SECRET
@@ -61,4 +63,4 @@ services:
       - key: STAFF_EMAILS
         sync: false
       - key: RELEASES_REPO
-        value: davidshoval/Xquery.io-releases
+        value: davidshoval/motionql-releases

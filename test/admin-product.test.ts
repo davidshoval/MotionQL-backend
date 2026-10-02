@@ -34,7 +34,7 @@ describe('staff console: the free-year switch', () => {
     expect((await first.get('/admin/plans')).statusCode).toBe(403);
     expect((await new Client(t).get('/admin/plans')).statusCode).toBe(401);
 
-    const staff = await makeStaff(t, 'staff@xquery.io');
+    const staff = await makeStaff(t, 'staff@motionql.com');
     expect((await staff.get('/admin/plans')).json().free).toMatchObject({ enabled: true, edition: 'pro', durationDays: 365, renewable: true });
     const changed = await staff.put('/admin/plans/free', { durationDays: 30, edition: 'trial' });
     expect(changed.json().free).toMatchObject({ enabled: true, edition: 'trial', durationDays: 30 });
@@ -56,7 +56,7 @@ describe('staff console: the free-year switch', () => {
 
   it('issues, extends and revokes keys by hand and finds them by e-mail or hash', async () => {
     t = await makeApp();
-    const staff = await makeStaff(t, 'staff@xquery.io');
+    const staff = await makeStaff(t, 'staff@motionql.com');
     const issued = await staff.post('/admin/licenses', { email: 'Partner@Big.co', customer: 'Big Co', edition: 'enterprise', features: ['team'], durationDays: 90 });
     expect(issued.statusCode).toBe(201);
     const lic = issued.json().license;
@@ -79,8 +79,8 @@ describe('staff console: the free-year switch', () => {
 
 describe('STAFF_EMAILS', () => {
   it('makes listed e-mails staff once verified', async () => {
-    t = await makeApp({ env: { STAFF_EMAILS: 'Owner@Xquery.io' } });
-    const owner = await signUp(t, 'owner@xquery.io');
+    t = await makeApp({ env: { STAFF_EMAILS: 'Owner@MotionQL.com' } });
+    const owner = await signUp(t, 'owner@motionql.com');
     expect((await owner.get('/me')).json().user.isStaff).toBe(true);
     expect((await owner.get('/admin/plans')).statusCode).toBe(200);
     const other = await signUp(t, 'someone@example.com');
@@ -96,23 +96,23 @@ describe('product service', () => {
     t.clock.advanceDays(1);
     expect((await manifest(t)).token).toBe(a.token);
 
-    const staff = await makeStaff(t, 'staff@xquery.io');
+    const staff = await makeStaff(t, 'staff@motionql.com');
     const bad = await staff.put('/admin/manifest', { notifications: [{ id: 'x', severity: 'loud' }] });
     expect(bad.json().error.code).toBe('invalid_manifest');
     const ok = await staff.put('/admin/manifest', {
-      requiredUpdate: { stable: { minimumVersion: '1.4.0', downloadUrl: 'https://xquery.io/download' } },
+      requiredUpdate: { stable: { minimumVersion: '1.4.0', downloadUrl: 'https://motionql.com/download' } },
       notifications: [{ id: 'hello', severity: 'info', title: 'Hi', body: 'Welcome', publishedAt: '2026-10-01T00:00:00Z' }],
     });
     expect(ok.statusCode).toBe(200);
     const b = await manifest(t);
     expect(b.payload.issuedAt).toBe('2026-10-02T12:00:00.000Z');
-    expect(b.payload.requiredUpdate).toEqual({ stable: { minimumVersion: '1.4.0', downloadUrl: 'https://xquery.io/download' } });
+    expect(b.payload.requiredUpdate).toEqual({ stable: { minimumVersion: '1.4.0', downloadUrl: 'https://motionql.com/download' } });
     expect(b.payload.notifications[0].id).toBe('hello');
   });
 
   it('lists revoked, unexpired keys only once revocations are switched on', async () => {
     t = await makeApp();
-    const staff = await makeStaff(t, 'staff@xquery.io');
+    const staff = await makeStaff(t, 'staff@motionql.com');
     const lic = (await staff.post('/admin/licenses', { email: 'x@y.co', customer: 'X', edition: 'pro', durationDays: 10 })).json().license;
     await staff.post(`/admin/licenses/${lic.licenseId}/revoke`, { reason: 'leaked' });
     expect((await manifest(t)).payload.revokedLicenses).toBeUndefined();
@@ -146,7 +146,7 @@ describe('product service', () => {
     const member = (await owner.get(`/teams/${teamId}/members`)).json().members[0];
     expect(member.usage).toMatchObject({ installs: 2, appVersion: '1.4.2' });
 
-    const staff = await makeStaff(t, 'staff@xquery.io');
+    const staff = await makeStaff(t, 'staff@motionql.com');
     expect((await staff.get('/admin/overview')).json().installs.active.day).toBe(2);
   });
 });
@@ -160,19 +160,19 @@ describe('downloads', () => {
         return Response.json({
           tag_name: 'v1.4.2',
           published_at: '2026-09-30T10:00:00Z',
-          html_url: 'https://github.com/davidshoval/Xquery.io-releases/releases/tag/v1.4.2',
+          html_url: 'https://github.com/davidshoval/motionql-releases/releases/tag/v1.4.2',
           assets: [
-            { name: 'XQuery-1.4.2-arm64.dmg', size: 100, browser_download_url: 'https://dl/arm.dmg' },
-            { name: 'XQuery-1.4.2.dmg', size: 110, browser_download_url: 'https://dl/x64.dmg' },
-            { name: 'XQuery-Setup-1.4.2.exe', size: 90, browser_download_url: 'https://dl/setup.exe' },
-            { name: 'XQuery-1.4.2.AppImage', size: 120, browser_download_url: 'https://dl/app.AppImage' },
-            { name: 'XQuery-1.4.2.exe.blockmap', size: 1, browser_download_url: 'https://dl/x.blockmap' },
+            { name: 'MotionQL-1.4.2-arm64.dmg', size: 100, browser_download_url: 'https://dl/arm.dmg' },
+            { name: 'MotionQL-1.4.2.dmg', size: 110, browser_download_url: 'https://dl/x64.dmg' },
+            { name: 'MotionQL-Setup-1.4.2.exe', size: 90, browser_download_url: 'https://dl/setup.exe' },
+            { name: 'MotionQL-1.4.2.AppImage', size: 120, browser_download_url: 'https://dl/app.AppImage' },
+            { name: 'MotionQL-1.4.2.exe.blockmap', size: 1, browser_download_url: 'https://dl/x.blockmap' },
             { name: 'latest-mac.yml', size: 1, browser_download_url: 'https://dl/latest-mac.yml' },
             { name: 'SHA256SUMS.txt', size: 1, browser_download_url: 'https://dl/SHA256SUMS.txt' },
           ],
         });
       }
-      if (u === 'https://dl/SHA256SUMS.txt') return new Response(`${'a'.repeat(64)}  XQuery-1.4.2-arm64.dmg\n${'b'.repeat(64)}  XQuery-Setup-1.4.2.exe\n`);
+      if (u === 'https://dl/SHA256SUMS.txt') return new Response(`${'a'.repeat(64)}  MotionQL-1.4.2-arm64.dmg\n${'b'.repeat(64)}  MotionQL-Setup-1.4.2.exe\n`);
       return new Response('not found', { status: 404 });
     }) as typeof fetch;
     t = await makeApp({ fetch: fakeFetch });
@@ -181,10 +181,10 @@ describe('downloads', () => {
     const body = res.json();
     expect(body.version).toBe('1.4.2');
     expect(body.files).toEqual([
-      { name: 'XQuery-1.4.2-arm64.dmg', os: 'macos', arch: 'arm64', kind: 'dmg', size: 100, url: 'https://dl/arm.dmg', sha256: 'a'.repeat(64) },
-      { name: 'XQuery-1.4.2.dmg', os: 'macos', arch: 'x64', kind: 'dmg', size: 110, url: 'https://dl/x64.dmg' },
-      { name: 'XQuery-Setup-1.4.2.exe', os: 'windows', arch: 'x64', kind: 'exe', size: 90, url: 'https://dl/setup.exe', sha256: 'b'.repeat(64) },
-      { name: 'XQuery-1.4.2.AppImage', os: 'linux', arch: 'x64', kind: 'appimage', size: 120, url: 'https://dl/app.AppImage' },
+      { name: 'MotionQL-1.4.2-arm64.dmg', os: 'macos', arch: 'arm64', kind: 'dmg', size: 100, url: 'https://dl/arm.dmg', sha256: 'a'.repeat(64) },
+      { name: 'MotionQL-1.4.2.dmg', os: 'macos', arch: 'x64', kind: 'dmg', size: 110, url: 'https://dl/x64.dmg' },
+      { name: 'MotionQL-Setup-1.4.2.exe', os: 'windows', arch: 'x64', kind: 'exe', size: 90, url: 'https://dl/setup.exe', sha256: 'b'.repeat(64) },
+      { name: 'MotionQL-1.4.2.AppImage', os: 'linux', arch: 'x64', kind: 'appimage', size: 120, url: 'https://dl/app.AppImage' },
     ]);
     clearDownloadCache();
   });

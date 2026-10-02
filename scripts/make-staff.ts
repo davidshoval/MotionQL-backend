@@ -8,7 +8,7 @@ if (!email) {
   console.error('Usage: npm run make-staff -- you@example.com [--revoke]');
   process.exit(1);
 }
-const db = await connect(process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017', process.env.MONGODB_DB ?? 'xquery');
+const db = await connect(process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017', process.env.MONGODB_DB ?? 'motionql');
 const res = await db.c.users.updateOne({ email }, { $set: { isStaff: !revoke, updatedAt: new Date() } });
 await db.c.auditEvents.insertOne({
   _id: `evt_cli_${Date.now()}`,

@@ -39,7 +39,7 @@ describe('teams', () => {
   it('invites a member who joins with a seat; the key is e-mailed; members cannot manage the team', async () => {
     const { owner, teamId } = await teamWithOwner();
     const token = await invite(owner, teamId, 'Mia@acme.com');
-    expect(t.mailer.last('mia@acme.com')!.text).toContain('https://xquery.io/invite?token=');
+    expect(t.mailer.last('mia@acme.com')!.text).toContain('https://motionql.com/invite?token=');
 
     const preview = await new Client(t).post('/invites/preview', { token });
     expect(preview.json()).toMatchObject({ teamName: 'Acme Corp', email: 'mia@acme.com', role: 'member', assignSeat: true });
@@ -48,7 +48,7 @@ describe('teams', () => {
     expect((await mia.get('/me')).json().pendingInvites).toHaveLength(1);
     const accepted = await mia.post('/invites/accept', { token });
     expect(accepted.json()).toMatchObject({ seatAssigned: true, team: { seatsUsed: 2 } });
-    expect(t.mailer.last('mia@acme.com')!.subject).toBe('Your Xquery Pro key from Acme Corp');
+    expect(t.mailer.last('mia@acme.com')!.subject).toBe('Your MotionQL Pro key from Acme Corp');
     expect((await mia.post('/invites/accept', { token })).statusCode).toBe(404);
 
     const members = (await owner.get(`/teams/${teamId}/members`)).json().members;
@@ -101,7 +101,7 @@ describe('teams', () => {
     const key = (await leaver.get('/me/licenses')).json().licenses.find((l: { source: string }) => l.source === 'team');
 
     expect((await owner.del(`/teams/${teamId}/members/${leaverId}`)).statusCode).toBe(204);
-    expect(t.mailer.last('leaver@acme.com')!.subject).toContain('seat on Xquery was removed');
+    expect(t.mailer.last('leaver@acme.com')!.subject).toContain('seat on MotionQL was removed');
     expect((await owner.get(`/teams/${teamId}`)).json().team.seatsUsed).toBe(1);
     const after = (await leaver.get('/me/licenses')).json().licenses.find((l: { licenseId: string }) => l.licenseId === key.licenseId);
     expect(after.status).toBe('revoked');
@@ -120,7 +120,7 @@ describe('teams', () => {
     const denied = await owner.patch(`/teams/${teamId}/members/${ownerId}`, { edition: 'enterprise' });
     expect(denied.json().error.code).toBe('edition_not_allowed');
 
-    const staff = await makeStaff(t, 'staff@xquery.io');
+    const staff = await makeStaff(t, 'staff@motionql.com');
     expect((await staff.patch(`/admin/teams/${teamId}`, { allowedEditions: ['pro', 'enterprise'], allowedFeatures: ['team'] })).statusCode).toBe(200);
     const changed = await owner.patch(`/teams/${teamId}/members/${ownerId}`, { edition: 'enterprise', features: ['team'] });
     expect(changed.json().member).toMatchObject({ edition: 'enterprise', features: ['team'] });

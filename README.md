@@ -1,6 +1,6 @@
-# Xquery.io backend
+# MotionQL backend
 
-The API behind [xquery.io](https://xquery.io): accounts, license keys for the Xquery desktop app, team seat
+The API behind [motionql.com](https://motionql.com): accounts, license keys for the MotionQL desktop app, team seat
 management, the staff console, and the product service the app reads (`/v1/manifest`, `/v1/ping`).
 
 TypeScript on Node 22 with Fastify, MongoDB (Atlas in production) through the official driver, zod validation.
@@ -8,7 +8,7 @@ Every endpoint is listed in [docs/API.md](docs/API.md); `GET /openapi.json` serv
 
 ## How licensing works
 
-The app verifies keys offline: a key is `XQ1.<payload>.<Ed25519 signature>` and the app embeds the public key.
+The app verifies keys offline: a key is `MQL1.<payload>.<Ed25519 signature>` and the app embeds the public key.
 This service holds the private key and signs one key per person:
 
 - **Free plan.** When a user confirms their e-mail they get a key, e-mailed and shown on `/account`. Today that is a
@@ -20,20 +20,20 @@ This service holds the private key and signs one key per person:
   (`includeRevocations`, off until the app release that reads it ships).
 
 `src/licensing/licenseFormat.ts` and `manifest.ts` are copied from the app repo so both sides use the same signing
-code. Keep them in sync when the app changes.
+code (the motionql-platform repo). Keep them byte-identical with the app when it changes.
 
 ## Run it locally
 
 ```sh
 npm install
-npm run keygen:dev            # writes .license-dev/xquery-license-private.pem (gitignored)
+npm run keygen:dev            # writes .license-dev/motionql-license-private.pem (gitignored)
 cp .env.example .env          # points at that key and a local MongoDB
 npm run dev                   # http://localhost:4000, e-mails are printed to the log
 npm run make-staff -- you@example.com   # after registering, for /admin
 ```
 
 To issue keys a development build of the app accepts, either set `LICENSE_SIGNING_KEY_FILE` to the app's own
-`.license-dev/xquery-license-private.pem`, or put the public key this server logs at start-up into the app's
+`.license-dev/motionql-license-private.pem`, or put the public key this server logs at start-up into the app's
 `publicKey.ts`.
 
 ## Checks
@@ -47,7 +47,8 @@ Tests run against a real `mongod` from `mongodb-memory-server` (downloaded on fi
 
 ## Deploy on Render
 
-`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, health check `/health`) on Render's
+`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, a name kept from before the MotionQL rename because renaming a Blueprint service creates a new
+Render service with a new URL and without its secrets; health check `/health`) on Render's
 free plan. A free service sleeps after 15 minutes without traffic and takes about a minute to wake on the next
 request, and it has no Shell. Switch `plan: free` to `starter` when that matters.
 
@@ -59,21 +60,21 @@ request, and it has no Shell. Switch `plan: free` to `starter` when that matters
    `SMTP_USER` and `SMTP_PASS` (e-mail, below), and optionally `TURNSTILE_SECRET`. It starts pointed at the website's Render service
    (`https://xquery-website.onrender.com`). Every push to `main` deploys.
 4. **Domains and cookies.** The session cookie works best when the website and the API share a domain:
-   - **Custom domains (recommended):** the website on `xquery.io`, the API on `api.xquery.io` (Render → Settings →
-     Custom Domains). Set `COOKIE_DOMAIN=.xquery.io`, `COOKIE_SAME_SITE=lax`, `WEB_URL=https://xquery.io`, and
-     `WEB_ORIGINS=https://xquery.io`.
+   - **Custom domains (recommended):** the website on `motionql.com` (and `www.motionql.com`), the API on `api.motionql.com` (Render → Settings →
+     Custom Domains). Set `COOKIE_DOMAIN=.motionql.com`, `COOKIE_SAME_SITE=lax`, `WEB_URL=https://motionql.com`,
+     and `WEB_ORIGINS=https://motionql.com,https://www.motionql.com`.
    - **Before that, on `*.onrender.com`:** two onrender.com hosts count as different sites, so set
      `COOKIE_SAME_SITE=none`, leave `COOKIE_DOMAIN` empty, and set `WEB_ORIGINS` to the website's exact
      origin, `https://xquery-website.onrender.com` (the Blueprint's starting values). Browsers that block third-party cookies (Safari, and Chrome in some modes)
      will not keep users signed in this way, so move to custom domains before launch.
 5. **E-mail.** The Blueprint sends through Gmail (`EMAIL_PROVIDER=smtp`): turn on 2-Step Verification for the
    Google account, create an app password at myaccount.google.com/apppasswords, and set `SMTP_USER` to the address
-   and `SMTP_PASS` to that password. Gmail allows about 500 messages a day. Once `xquery.io` is verified in Resend,
-   switch to `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `EMAIL_FROM="Xquery <hello@xquery.io>"`.
+   and `SMTP_PASS` to that password. Gmail allows about 500 messages a day. Once `motionql.com` is verified in Resend,
+   switch to `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `EMAIL_FROM="MotionQL <hello@motionql.com>"`.
 6. **Staff.** Put your e-mail in `STAFF_EMAILS`, then register on the website: verifying makes you staff. (Or run
    `npm run make-staff -- you@example.com` anywhere with `MONGODB_URI` set to the Atlas string.)
 
-Packaged app builds call the product service at `https://api.xquery.io/`, so give the API that custom domain before
+Packaged app builds call the product service at `https://api.motionql.com/`, so give the API that custom domain before
 the first release. This service never logs client IPs, as the app's privacy promise for the usage ping requires.
 A `Dockerfile` is included too, if you ever move off Render's Node runtime.
 

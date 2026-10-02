@@ -22,16 +22,16 @@ const EnvSchema = z.object({
   TRUST_PROXY: bool,
 
   MONGODB_URI: z.string().min(1).default('mongodb://127.0.0.1:27017'),
-  MONGODB_DB: z.string().min(1).default('xquery'),
+  MONGODB_DB: z.string().min(1).default('motionql'),
 
-  /** Public website origin used in e-mail links, e.g. https://xquery.io */
+  /** Public website origin used in e-mail links, e.g. https://motionql.com */
   WEB_URL: z.string().url().default('http://localhost:3000'),
-  /** Origins allowed to call the API with cookies. Defaults to WEB_URL's origin. */
+  /** Origins allowed to call the API with cookies, e.g. https://motionql.com,https://www.motionql.com. Defaults to WEB_URL's origin. */
   WEB_ORIGINS: list,
-  /** Cookie domain shared by xquery.io and api.xquery.io, e.g. .xquery.io. Empty = host-only cookie. */
+  /** Cookie domain shared by motionql.com and api.motionql.com, e.g. .motionql.com. Empty = host-only cookie. */
   COOKIE_DOMAIN: z.string().optional(),
   /**
-   * lax (default) when the site and the API share a registrable domain (xquery.io + api.xquery.io).
+   * lax (default) when the site and the API share a registrable domain (motionql.com + api.motionql.com).
    * none when they do not, e.g. two *.onrender.com hosts before custom domains are set up (needs HTTPS).
    */
   COOKIE_SAME_SITE: z.enum(['lax', 'none']).default('lax'),
@@ -50,7 +50,7 @@ const EnvSchema = z.object({
   SMTP_PORT: z.coerce.number().int().positive().default(465),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  /** Defaults to Xquery <SMTP_USER> with smtp, else Xquery <hello@xquery.io>. */
+  /** Defaults to MotionQL <SMTP_USER> with smtp, else MotionQL <hello@motionql.com>. */
   EMAIL_FROM: z.string().optional(),
 
   /** E-mails that become staff when they sign in or verify (for hosts without a shell, e.g. Render's free plan). */
@@ -59,7 +59,7 @@ const EnvSchema = z.object({
   TURNSTILE_SECRET: z.string().optional(),
 
   /** Public GitHub repo whose latest release is the download source. */
-  RELEASES_REPO: z.string().regex(/^[\w.-]+\/[\w.-]+$/).default('davidshoval/Xquery.io-releases'),
+  RELEASES_REPO: z.string().regex(/^[\w.-]+\/[\w.-]+$/).default('davidshoval/motionql-releases'),
   /** Optional token for the GitHub API (raises the rate limit); read-only, public repos only. */
   GITHUB_TOKEN: z.string().optional(),
 
@@ -154,7 +154,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     e.EMAIL_PROVIDER === 'smtp'
       ? { host: e.SMTP_HOST, port: e.SMTP_PORT, user: e.SMTP_USER!, pass: e.SMTP_PASS!.replace(/\s+/g, '') }
       : undefined;
-  const from = e.EMAIL_FROM || (smtp ? `Xquery <${smtp.user}>` : 'Xquery <hello@xquery.io>');
+  const from = e.EMAIL_FROM || (smtp ? `MotionQL <${smtp.user}>` : 'MotionQL <hello@motionql.com>');
   const webUrl = e.WEB_URL.replace(/\/+$/, '');
   return {
     env: e.NODE_ENV,

@@ -1,13 +1,13 @@
-# Xquery.io API
+# MotionQL API
 
-Base URL `https://api.xquery.io` (development `http://localhost:4000`). The machine-readable description is served at
+Base URL `https://api.motionql.com` (development `http://localhost:4000`). The machine-readable description is served at
 `GET /openapi.json`.
 
 ## Conventions
 
-- **Session.** Signing in sets an httpOnly cookie `xq_session` (Secure in production, SameSite=Lax, or None when
+- **Session.** Signing in sets an httpOnly cookie `mq_session` (Secure in production, SameSite=Lax, or None when
   `COOKIE_SAME_SITE=none` for a site on another domain such as `*.onrender.com`, `Domain=COOKIE_DOMAIN`,
-  e.g. `.xquery.io`, so xquery.io and api.xquery.io share it). Browser calls use `fetch(url, { credentials: 'include' })`.
+  e.g. `.motionql.com`, so motionql.com and api.motionql.com share it). Browser calls use `fetch(url, { credentials: 'include' })`.
   Sessions last 30 days.
 - **Bodies** are JSON. A write from a browser must come from an origin in `WEB_ORIGINS`; anything else gets
   `403 bad_origin`.
@@ -62,7 +62,7 @@ Base URL `https://api.xquery.io` (development `http://localhost:4000`). The mach
 | `GET /plans/free` | `{enabled, edition, features, durationDays, renewable}`, public, for pricing and sign-up copy |
 
 `license` = `{licenseId, key, edition, features, customer, email, seats, issuedAt, expiresAt, status, source, revokedAt?, team?: {id, name}}`.
-`key` is the full `XQ1.…` key the user pastes into Settings → License. `status` is `active`, `expired`, `revoked` or
+`key` is the full `MQL1.…` key the user pastes into Settings → License. `status` is `active`, `expired`, `revoked` or
 `replaced` (reissued). `source` is `free`, `team` or `staff`.
 
 ## Downloads
@@ -125,8 +125,8 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 
 Exactly as the app's `docs/PRODUCT_SERVICE.md` describes:
 
-- `GET /v1/manifest`: the `XQM1.…` signed token, `text/plain`. Re-signed with a newer `issuedAt` only when its content
-  changes. With `includeRevocations` on, it carries `revokedLicenses`: `sha256("xquery-license-id:" + licenseId)` of
+- `GET /v1/manifest`: the `MQLM1.…` signed token, `text/plain`. Re-signed with a newer `issuedAt` only when its content
+  changes. With `includeRevocations` on, it carries `revokedLicenses`: `sha256("motionql-license-id:" + licenseId)` of
   every revoked key that has not expired. Leave it off until the app release that understands the field ships,
   because older apps refuse a manifest with unknown keys.
 - `POST /v1/ping`: the anonymous usage ping. Unknown fields are refused; only `firstSeen`/`lastSeen` and the ping's

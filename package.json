@@ -1,8 +1,8 @@
 {
-  "name": "xquery-backend",
+  "name": "motionql-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Xquery.io accounts, license keys, team admin and product service API",
+  "description": "MotionQL accounts, license keys, team admin and product service API",
   "type": "module",
   "engines": {
     "node": ">=22"

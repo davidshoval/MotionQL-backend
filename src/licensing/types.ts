@@ -1,5 +1,5 @@
 /**
- * Types copied from the desktop app (Xquery.io-Platform src/shared/license.ts and src/shared/product.ts,
+ * Types copied from the desktop app (motionql-platform src/shared/license.ts and src/shared/product.ts,
  * commit 7a1d096). Keep them in sync: the app verifies exactly these shapes.
  */
 export type LicenseEdition = 'trial' | 'pro' | 'enterprise';
@@ -63,7 +63,7 @@ export interface ProductManifest {
   requiredUpdate?: { stable?: RequiredUpdateRule; beta?: RequiredUpdateRule };
   notifications: ManifestNotification[];
   /**
-   * sha256("xquery-license-id:" + licenseId) of revoked, unexpired keys, lowercase hex; omitted when empty. Apps
+   * sha256("motionql-license-id:" + licenseId) of revoked, unexpired keys, lowercase hex; omitted when empty. Apps
    * before Platform PR #51 refuse a manifest carrying it, so it is only sent when `includeRevocations` is on.
    */
   revokedLicenses?: string[];

@@ -77,8 +77,8 @@ export async function buildApp(deps: AppDeps): Promise<{ app: FastifyInstance; c
   });
   await app.register(swagger, {
     openapi: {
-      info: { title: 'Xquery.io API', version: '0.1.0', description: 'Accounts, license keys, teams, staff console and the desktop app product service.' },
-      servers: [{ url: 'https://api.xquery.io' }],
+      info: { title: 'MotionQL API', version: '0.1.0', description: 'Accounts, license keys, teams, staff console and the desktop app product service.' },
+      servers: [{ url: 'https://api.motionql.com' }],
     },
     transform: jsonSchemaTransform,
   });

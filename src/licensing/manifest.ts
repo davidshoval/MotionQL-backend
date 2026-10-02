@@ -6,15 +6,15 @@ import type {
 import { toPublicKey } from './licenseFormat.js';
 
 /**
- * Copied from the desktop app (Xquery.io-Platform src/main/product/manifest.ts as of PR #51, which adds
+ * Copied from the desktop app (motionql-platform src/main/product/manifest.ts as of PR #51, which adds
  * revokedLicenses), minus the client-side helpers. Keep it in sync with the app.
  *
- * Signed manifest: `XQM1.<base64url(payload JSON)>.<base64url(Ed25519 signature)>`. The signature covers
+ * Signed manifest: `MQLM1.<base64url(payload JSON)>.<base64url(Ed25519 signature)>`. The signature covers
  * MANIFEST_CONTEXT followed by the payload bytes, so a license signature can never pass as a manifest (or back).
  * Signed with the license key unless policy names another public key (see docs/PRODUCT_SERVICE.md).
  */
-export const MANIFEST_PREFIX = 'XQM1';
-export const MANIFEST_CONTEXT = 'xquery-product-manifest-v1\n';
+export const MANIFEST_PREFIX = 'MQLM1';
+export const MANIFEST_CONTEXT = 'motionql-product-manifest-v1\n';
 // Room for MAX_REVOKED_LICENSES hashes next to the notifications.
 export const MAX_MANIFEST_LENGTH = 2 * 1024 * 1024;
 export const MAX_REVOKED_LICENSES = 20_000;
@@ -200,7 +200,7 @@ export function verifyManifest(token: string, publicKey: string | KeyObject): Pr
   if (typeof token !== 'string' || token.length > MAX_MANIFEST_LENGTH) throw new Error('manifest is missing or too large');
   const parts = token.trim().split('.');
   if (parts.length !== 3 || parts[0] !== MANIFEST_PREFIX || !parts.slice(1).every((p) => /^[A-Za-z0-9_-]+$/.test(p))) {
-    throw new Error('not an XQuery manifest');
+    throw new Error('not a MotionQL manifest');
   }
   const payload = Buffer.from(parts[1], 'base64url');
   const signature = Buffer.from(parts[2], 'base64url');

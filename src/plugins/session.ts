@@ -4,7 +4,7 @@ import type { UserDoc } from '../db.js';
 import { forbidden, unauthorized } from '../errors.js';
 import { createSession, userForSession } from '../services/accounts.js';
 
-export const SESSION_COOKIE = 'xq_session';
+export const SESSION_COOKIE = 'mq_session';
 
 declare module 'fastify' {
   interface FastifyRequest {
