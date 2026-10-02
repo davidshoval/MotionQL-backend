@@ -29,3 +29,14 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...env, MONGODB_URI: 'mongodb+srv://u:p@example.net' }).mongoUri).toContain('example.net');
   });
 });
+
+describe('e-mail settings', () => {
+  it('sends through Gmail SMTP with only an address and an app password', async () => {
+    const { loadConfig } = await import('../src/config.js');
+    const base = { LICENSE_SIGNING_KEY: privateKey, LICENSE_SIGNING_KEY_PASSPHRASE: 'right', EMAIL_PROVIDER: 'smtp' };
+    expect(() => loadConfig(base)).toThrow(/SMTP_USER and SMTP_PASS/);
+    const { email } = loadConfig({ ...base, SMTP_USER: 'me@gmail.com', SMTP_PASS: 'abcd efgh ijkl mnop' });
+    expect(email.smtp).toEqual({ host: 'smtp.gmail.com', port: 465, user: 'me@gmail.com', pass: 'abcdefghijklmnop' });
+    expect(email.from).toBe('Xquery <me@gmail.com>');
+  });
+});

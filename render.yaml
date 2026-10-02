@@ -43,12 +43,18 @@ services:
         sync: false
       - key: LICENSE_SIGNING_KEY_PASSPHRASE
         sync: false
+      # smtp + a Gmail address and app password needs no domain; resend once xquery.io is verified there.
       - key: EMAIL_PROVIDER
-        value: resend
+        value: smtp
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
       - key: RESEND_API_KEY
         sync: false
+      # Optional; defaults to "Xquery <SMTP_USER>" with smtp.
       - key: EMAIL_FROM
-        value: Xquery <hello@xquery.io>
+        sync: false
       - key: TURNSTILE_SECRET
         sync: false
       # Your own e-mail(s), comma-separated: they become staff once verified (the free plan has no Shell).

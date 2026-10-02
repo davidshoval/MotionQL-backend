@@ -28,12 +28,14 @@
     "fastify-plugin": "^6.0.0",
     "fastify-type-provider-zod": "^7.0.0",
     "mongodb": "^7.7.0",
+    "nodemailer": "^7.0.13",
     "ulid": "^3.0.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.4",
+    "@types/nodemailer": "^8.0.2",
     "eslint": "^10.11.0",
     "globals": "^17.13.0",
     "mongodb-memory-server": "^11.3.0",
