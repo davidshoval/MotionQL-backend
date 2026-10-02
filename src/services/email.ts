@@ -44,7 +44,11 @@ export class ResendMailer implements Mailer {
       body: JSON.stringify({ from: this.from, to: [email.to], subject: email.subject, text: email.text, html: email.html }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) throw new Error(`Resend refused the message: HTTP ${res.status}`);
+    if (!res.ok) {
+      // Resend says why (unverified domain, test sender to another address, bad key); keep it for the log.
+      const reason = (await res.text().catch(() => '')).slice(0, 500);
+      throw new Error(`Resend refused the message: HTTP ${res.status} ${reason}`.trim());
+    }
   }
 }
 
