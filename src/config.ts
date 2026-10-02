@@ -22,8 +22,7 @@ const EnvSchema = z.object({
   TRUST_PROXY: bool,
 
   MONGODB_URI: z.string().min(1).default('mongodb://127.0.0.1:27017'),
-  // Database name kept from the Xquery name: renaming it would orphan existing data.
-  MONGODB_DB: z.string().min(1).default('xquery'),
+  MONGODB_DB: z.string().min(1).default('motionql'),
 
   /** Public website origin used in e-mail links, e.g. https://motionql.com */
   WEB_URL: z.string().url().default('http://localhost:3000'),
@@ -59,8 +58,8 @@ const EnvSchema = z.object({
   /** Cloudflare Turnstile secret; when set, /auth/register requires a valid turnstileToken. */
   TURNSTILE_SECRET: z.string().optional(),
 
-  /** Public GitHub repo whose latest release is the download source (still named Xquery.io-releases on GitHub). */
-  RELEASES_REPO: z.string().regex(/^[\w.-]+\/[\w.-]+$/).default('davidshoval/Xquery.io-releases'),
+  /** Public GitHub repo whose latest release is the download source. */
+  RELEASES_REPO: z.string().regex(/^[\w.-]+\/[\w.-]+$/).default('davidshoval/motionql-releases'),
   /** Optional token for the GitHub API (raises the rate limit); read-only, public repos only. */
   GITHUB_TOKEN: z.string().optional(),
 

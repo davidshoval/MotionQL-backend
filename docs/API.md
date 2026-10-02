@@ -5,7 +5,7 @@ Base URL `https://api.motionql.com` (development `http://localhost:4000`). The m
 
 ## Conventions
 
-- **Session.** Signing in sets an httpOnly cookie `xq_session` (Secure in production, SameSite=Lax, or None when
+- **Session.** Signing in sets an httpOnly cookie `mq_session` (Secure in production, SameSite=Lax, or None when
   `COOKIE_SAME_SITE=none` for a site on another domain such as `*.onrender.com`, `Domain=COOKIE_DOMAIN`,
   e.g. `.motionql.com`, so motionql.com and api.motionql.com share it). Browser calls use `fetch(url, { credentials: 'include' })`.
   Sessions last 30 days.
@@ -127,7 +127,7 @@ Exactly as the app's `docs/PRODUCT_SERVICE.md` describes:
 
 - `GET /v1/manifest`: the `XQM1.…` signed token, `text/plain`. Re-signed with a newer `issuedAt` only when its content
   changes. With `includeRevocations` on, it carries `revokedLicenses`: `sha256("xquery-license-id:" + licenseId)` of
-  every revoked key that has not expired (the `xquery-` prefix predates the MotionQL name and stays, since apps hash it). Leave it off until the app release that understands the field ships,
+  every revoked key that has not expired. Leave it off until the app release that understands the field ships,
   because older apps refuse a manifest with unknown keys.
 - `POST /v1/ping`: the anonymous usage ping. Unknown fields are refused; only `firstSeen`/`lastSeen` and the ping's
   fields are stored, never the IP, and a TTL index deletes installs 25 months after they were last seen.

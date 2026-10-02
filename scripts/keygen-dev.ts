@@ -1,7 +1,7 @@
 /**
  * Writes a development Ed25519 key pair to .license-dev/ (gitignored) and prints the .env lines.
  * Keys it signs only work in app builds that embed its public key. For the app's own dev key, point
- * LICENSE_SIGNING_KEY_FILE at the Platform repo's .license-dev/xquery-license-private.pem instead.
+ * LICENSE_SIGNING_KEY_FILE at the Platform repo's .license-dev/motionql-license-private.pem instead.
  * Production keys are made offline with the app's `npm run license -- keygen` and never touch this repo.
  */
 import { generateKeyPairSync } from 'node:crypto';
@@ -9,8 +9,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { publicKeyBase64 } from '../src/config.js';
 
 const dir = '.license-dev';
-// File name kept from the Xquery name: it matches the desktop app repo and existing LICENSE_SIGNING_KEY_FILE settings.
-const file = `${dir}/xquery-license-private.pem`;
+const file = `${dir}/motionql-license-private.pem`;
 if (existsSync(file)) {
   console.error(`${file} already exists; delete it first to make a new one.`);
   process.exit(1);

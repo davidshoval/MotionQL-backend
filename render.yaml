@@ -1,7 +1,8 @@
 # Render Blueprint: New → Blueprint → pick this repo. Secrets marked `sync: false` are asked for on first deploy.
 services:
   - type: web
-    # Service name kept from the Xquery name: renaming it makes Render create a brand-new service.
+    # Service name kept from before the MotionQL rename: renaming a Blueprint service makes Render create a new
+    # service with a new URL and without its secret env vars.
     name: xquery-api
     runtime: node
     # Free: sleeps after 15 minutes without traffic, about a minute to wake; no Shell (use STAFF_EMAILS).
@@ -21,13 +22,12 @@ services:
       # Render terminates TLS in front of the service; trust it for client IPs (rate limits).
       - key: TRUST_PROXY
         value: "true"
-      # Database name kept from the Xquery name: renaming it would orphan existing data.
       - key: MONGODB_DB
-        value: xquery
+        value: motionql
       # MongoDB Atlas connection string (allow Render's outbound IPs or 0.0.0.0/0 in Atlas Network Access).
       - key: MONGODB_URI
         sync: false
-      # Start: the website's Render service (xquery-website, frontend render.yaml; Render service names stay).
+      # Start: the website's Render service (xquery-website, motionql-frontend render.yaml; Render service names stay).
       # Once motionql.com and api.motionql.com are custom domains: WEB_URL=https://motionql.com,
       # COOKIE_DOMAIN=.motionql.com, COOKIE_SAME_SITE=lax.
       - key: WEB_URL
@@ -62,6 +62,5 @@ services:
       # Your own e-mail(s), comma-separated: they become staff once verified (the free plan has no Shell).
       - key: STAFF_EMAILS
         sync: false
-      # The releases repo keeps its GitHub name.
       - key: RELEASES_REPO
-        value: davidshoval/Xquery.io-releases
+        value: davidshoval/motionql-releases

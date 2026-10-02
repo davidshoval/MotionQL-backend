@@ -160,7 +160,7 @@ describe('downloads', () => {
         return Response.json({
           tag_name: 'v1.4.2',
           published_at: '2026-09-30T10:00:00Z',
-          html_url: 'https://github.com/davidshoval/Xquery.io-releases/releases/tag/v1.4.2',
+          html_url: 'https://github.com/davidshoval/motionql-releases/releases/tag/v1.4.2',
           assets: [
             { name: 'MotionQL-1.4.2-arm64.dmg', size: 100, browser_download_url: 'https://dl/arm.dmg' },
             { name: 'MotionQL-1.4.2.dmg', size: 110, browser_download_url: 'https://dl/x64.dmg' },

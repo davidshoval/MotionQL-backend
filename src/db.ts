@@ -88,7 +88,7 @@ export interface LicenseDoc {
   /** The full XQ1 key; Ed25519 is deterministic, so this is exactly what signing the payload gives again. */
   key: string;
   payload: LicensePayload;
-  /** sha256("xquery-license-id:" + licenseId) (prefix kept from the Xquery name: existing apps and revocations hash it): what the app sends in its ping and the manifest lists when revoked. */
+  /** sha256("xquery-license-id:" + licenseId): what the app sends in its ping and the manifest lists when revoked. */
   hash: string;
   issuedAt: Date;
   expiresAt: Date;

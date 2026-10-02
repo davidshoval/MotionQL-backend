@@ -32,7 +32,7 @@ export async function makeApp(opts: { fetch?: typeof fetch; env?: Record<string,
   });
   const client = new MongoClient(inject('mongoUri'));
   await client.connect();
-  const db = client.db(`xq_test_${process.pid}_${Date.now()}_${counter++}`);
+  const db = client.db(`mq_test_${process.pid}_${Date.now()}_${counter++}`);
   const c = collections(db);
   await ensureIndexes(c);
   const mailer = new MemoryMailer();
@@ -69,8 +69,8 @@ export class Client {
       headers: { origin: WEB, ...(this.cookie ? { cookie: this.cookie } : {}) },
       ...(body !== undefined ? { payload: body as object } : {}),
     });
-    const set = res.cookies.find((c) => c.name === 'xq_session');
-    if (set) this.cookie = set.value ? `xq_session=${set.value}` : undefined;
+    const set = res.cookies.find((c) => c.name === 'mq_session');
+    if (set) this.cookie = set.value ? `mq_session=${set.value}` : undefined;
     return res;
   }
   get = (url: string) => this.req('GET', url);

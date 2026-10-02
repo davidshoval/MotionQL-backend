@@ -20,22 +20,20 @@ This service holds the private key and signs one key per person:
   (`includeRevocations`, off until the app release that reads it ships).
 
 `src/licensing/licenseFormat.ts` and `manifest.ts` are copied from the app repo so both sides use the same signing
-code. Keep them in sync when the app changes, and keep their `xquery`/`XQ` identifiers (hash prefixes, key and
-manifest formats) as they are: renaming them would break existing keys and apps. Likewise the `xq_session`/`xq_csrf`
-cookies, the `xquery` database, the `xquery-api` Render service and the `Xquery.io-releases` repo keep their names.
+code (the motionql-platform repo). Keep them byte-identical with the app when it changes.
 
 ## Run it locally
 
 ```sh
 npm install
-npm run keygen:dev            # writes .license-dev/xquery-license-private.pem (gitignored)
+npm run keygen:dev            # writes .license-dev/motionql-license-private.pem (gitignored)
 cp .env.example .env          # points at that key and a local MongoDB
 npm run dev                   # http://localhost:4000, e-mails are printed to the log
 npm run make-staff -- you@example.com   # after registering, for /admin
 ```
 
 To issue keys a development build of the app accepts, either set `LICENSE_SIGNING_KEY_FILE` to the app's own
-`.license-dev/xquery-license-private.pem`, or put the public key this server logs at start-up into the app's
+`.license-dev/motionql-license-private.pem`, or put the public key this server logs at start-up into the app's
 `publicKey.ts`.
 
 ## Checks
@@ -49,7 +47,8 @@ Tests run against a real `mongod` from `mongodb-memory-server` (downloaded on fi
 
 ## Deploy on Render
 
-`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, a name kept from before the MotionQL rename; health check `/health`) on Render's
+`render.yaml` is a Render Blueprint for one Node web service (`xquery-api`, a name kept from before the MotionQL rename because renaming a Blueprint service creates a new
+Render service with a new URL and without its secrets; health check `/health`) on Render's
 free plan. A free service sleeps after 15 minutes without traffic and takes about a minute to wake on the next
 request, and it has no Shell. Switch `plan: free` to `starter` when that matters.
 
