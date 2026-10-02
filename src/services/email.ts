@@ -1,4 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
+import nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 import type { Config } from '../config.js';
 
 export interface Email {
@@ -52,8 +54,32 @@ export class ResendMailer implements Mailer {
   }
 }
 
+/** Any SMTP server, e.g. a Gmail account with an app password (smtp.gmail.com:465). */
+export class SmtpMailer implements Mailer {
+  private readonly transport: Transporter;
+  constructor(
+    smtp: { host: string; port: number; user: string; pass: string },
+    private readonly from: string,
+  ) {
+    this.transport = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.port === 465,
+      auth: { user: smtp.user, pass: smtp.pass },
+      connectionTimeout: 10_000,
+      socketTimeout: 15_000,
+    });
+  }
+  async send(email: Email): Promise<void> {
+    await this.transport.sendMail({ from: this.from, to: email.to, subject: email.subject, text: email.text, html: email.html });
+  }
+}
+
 export function createMailer(config: Config, log: FastifyBaseLogger): Mailer {
-  return config.email.provider === 'resend' ? new ResendMailer(config.email.resendApiKey!, config.email.from) : new ConsoleMailer(log);
+  const { provider, from } = config.email;
+  if (provider === 'resend') return new ResendMailer(config.email.resendApiKey!, from);
+  if (provider === 'smtp') return new SmtpMailer(config.email.smtp!, from);
+  return new ConsoleMailer(log);
 }
 
 const escapeHtml = (value: string) =>

@@ -42,10 +42,16 @@ const EnvSchema = z.object({
   LICENSE_SIGNING_KEY_FILE: z.string().optional(),
   LICENSE_SIGNING_KEY_PASSPHRASE: z.string().optional(),
 
-  /** E-mail: "console" logs messages (development); "resend" sends through Resend. */
-  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  /** E-mail: "console" logs messages (development); "resend" sends through Resend; "smtp" through any SMTP server (Gmail). */
+  EMAIL_PROVIDER: z.enum(['console', 'resend', 'smtp']).default('console'),
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default('Xquery <hello@xquery.io>'),
+  /** SMTP; the defaults fit Gmail: SMTP_USER is the Gmail address, SMTP_PASS a Google app password. */
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().int().positive().default(465),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  /** Defaults to Xquery <SMTP_USER> with smtp, else Xquery <hello@xquery.io>. */
+  EMAIL_FROM: z.string().optional(),
 
   /** E-mails that become staff when they sign in or verify (for hosts without a shell, e.g. Render's free plan). */
   STAFF_EMAILS: list,
@@ -78,7 +84,12 @@ export interface Config {
   sessionDays: number;
   signingKey: KeyObject;
   publicKeyBase64: string;
-  email: { provider: 'console' | 'resend'; resendApiKey?: string; from: string };
+  email: {
+    provider: 'console' | 'resend' | 'smtp';
+    resendApiKey?: string;
+    smtp?: { host: string; port: number; user: string; pass: string };
+    from: string;
+  };
   turnstileSecret?: string;
   staffEmails: string[];
   releasesRepo: string;
@@ -136,6 +147,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('Set MONGODB_URI to your MongoDB Atlas connection string (mongodb+srv://…).');
   }
   if (e.EMAIL_PROVIDER === 'resend' && !e.RESEND_API_KEY) throw new Error('EMAIL_PROVIDER=resend needs RESEND_API_KEY');
+  if (e.EMAIL_PROVIDER === 'smtp' && !(e.SMTP_USER && e.SMTP_PASS)) {
+    throw new Error('EMAIL_PROVIDER=smtp needs SMTP_USER and SMTP_PASS (for Gmail: the address and an app password).');
+  }
+  const smtp =
+    e.EMAIL_PROVIDER === 'smtp'
+      ? { host: e.SMTP_HOST, port: e.SMTP_PORT, user: e.SMTP_USER!, pass: e.SMTP_PASS!.replace(/\s+/g, '') }
+      : undefined;
+  const from = e.EMAIL_FROM || (smtp ? `Xquery <${smtp.user}>` : 'Xquery <hello@xquery.io>');
   const webUrl = e.WEB_URL.replace(/\/+$/, '');
   return {
     env: e.NODE_ENV,
@@ -154,7 +173,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sessionDays: e.SESSION_DAYS,
     signingKey,
     publicKeyBase64: publicKeyBase64(signingKey),
-    email: { provider: e.EMAIL_PROVIDER, resendApiKey: e.RESEND_API_KEY, from: e.EMAIL_FROM },
+    email: { provider: e.EMAIL_PROVIDER, resendApiKey: e.RESEND_API_KEY, smtp, from },
     turnstileSecret: e.TURNSTILE_SECRET || undefined,
     staffEmails: e.STAFF_EMAILS.map((x) => x.toLowerCase()),
     releasesRepo: e.RELEASES_REPO,

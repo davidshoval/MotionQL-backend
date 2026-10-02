@@ -56,7 +56,7 @@ request, and it has no Shell. Switch `plan: free` to `starter` when that matters
 2. **Signing key.** Generate it offline with the app's `npm run license -- keygen`. Put the public half in the app's
    `publicKey.ts`, and paste the private PEM only into Render's `LICENSE_SIGNING_KEY` secret. Never commit it.
 3. **Render.** New → Blueprint → this repo. Fill in the secrets it asks for: `MONGODB_URI`, `LICENSE_SIGNING_KEY`,
-   `RESEND_API_KEY`, and optionally `TURNSTILE_SECRET`. It starts pointed at the website's Render service
+   `SMTP_USER` and `SMTP_PASS` (e-mail, below), and optionally `TURNSTILE_SECRET`. It starts pointed at the website's Render service
    (`https://xquery-website.onrender.com`). Every push to `main` deploys.
 4. **Domains and cookies.** The session cookie works best when the website and the API share a domain:
    - **Custom domains (recommended):** the website on `xquery.io`, the API on `api.xquery.io` (Render → Settings →
@@ -66,7 +66,11 @@ request, and it has no Shell. Switch `plan: free` to `starter` when that matters
      `COOKIE_SAME_SITE=none`, leave `COOKIE_DOMAIN` empty, and set `WEB_ORIGINS` to the website's exact
      origin, `https://xquery-website.onrender.com` (the Blueprint's starting values). Browsers that block third-party cookies (Safari, and Chrome in some modes)
      will not keep users signed in this way, so move to custom domains before launch.
-5. **Staff.** Put your e-mail in `STAFF_EMAILS`, then register on the website: verifying makes you staff. (Or run
+5. **E-mail.** The Blueprint sends through Gmail (`EMAIL_PROVIDER=smtp`): turn on 2-Step Verification for the
+   Google account, create an app password at myaccount.google.com/apppasswords, and set `SMTP_USER` to the address
+   and `SMTP_PASS` to that password. Gmail allows about 500 messages a day. Once `xquery.io` is verified in Resend,
+   switch to `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `EMAIL_FROM="Xquery <hello@xquery.io>"`.
+6. **Staff.** Put your e-mail in `STAFF_EMAILS`, then register on the website: verifying makes you staff. (Or run
    `npm run make-staff -- you@example.com` anywhere with `MONGODB_URI` set to the Atlas string.)
 
 Packaged app builds call the product service at `https://api.xquery.io/`, so give the API that custom domain before
