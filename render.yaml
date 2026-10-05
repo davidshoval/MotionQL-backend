@@ -31,7 +31,7 @@ services:
       # Once motionql.com and api.motionql.com are custom domains: WEB_URL=https://motionql.com,
       # COOKIE_DOMAIN=.motionql.com, COOKIE_SAME_SITE=lax.
       - key: WEB_URL
-        value: https://xquery-website.onrender.com
+        value: https://motionql.com
       # Comma-separated exact origins allowed to call the API with cookies.
       - key: WEB_ORIGINS
         value: https://motionql.com,https://www.motionql.com,https://xquery-website.onrender.com
@@ -45,16 +45,16 @@ services:
         sync: false
       - key: LICENSE_SIGNING_KEY_PASSPHRASE
         sync: false
-      # smtp + a Gmail address and app password needs no domain; resend once motionql.com is verified there.
+      # resend: motionql.com is verified in Resend (DNS records resend._domainkey and send.* at GoDaddy).
       - key: EMAIL_PROVIDER
-        value: smtp
+        value: resend
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
         sync: false
       - key: RESEND_API_KEY
         sync: false
-      # Optional; defaults to "MotionQL <SMTP_USER>" with smtp.
+      # MotionQL <hello@motionql.com> (the default with resend).
       - key: EMAIL_FROM
         sync: false
       - key: TURNSTILE_SECRET
