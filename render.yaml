@@ -27,9 +27,7 @@ services:
       # MongoDB Atlas connection string (allow Render's outbound IPs or 0.0.0.0/0 in Atlas Network Access).
       - key: MONGODB_URI
         sync: false
-      # Start: the website's Render service (xquery-website, motionql-frontend render.yaml; Render service names stay).
-      # Once motionql.com and api.motionql.com are custom domains: WEB_URL=https://motionql.com,
-      # COOKIE_DOMAIN=.motionql.com, COOKIE_SAME_SITE=lax.
+      # The website (xquery-website on Render, custom domain motionql.com) calls this API at https://api.motionql.com.
       - key: WEB_URL
         value: https://motionql.com
       # Comma-separated exact origins allowed to call the API with cookies.
@@ -37,9 +35,9 @@ services:
         value: https://motionql.com,https://www.motionql.com,https://xquery-website.onrender.com
       - key: COOKIE_DOMAIN
         value: ""
-      # none while the site and API are separate *.onrender.com hosts; lax with custom domains.
+      # lax: motionql.com and api.motionql.com are the same site. Sign-in from xquery-website.onrender.com would need none.
       - key: COOKIE_SAME_SITE
-        value: none
+        value: lax
       # The production Ed25519 private key (PEM), from the app's `npm run license -- keygen`.
       - key: LICENSE_SIGNING_KEY
         sync: false

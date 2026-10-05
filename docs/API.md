@@ -126,9 +126,9 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 Exactly as the app's `docs/PRODUCT_SERVICE.md` describes:
 
 - `GET /v1/manifest`: the `MQLM1.…` signed token, `text/plain`. Re-signed with a newer `issuedAt` only when its content
-  changes. With `includeRevocations` on, it carries `revokedLicenses`: `sha256("motionql-license-id:" + licenseId)` of
-  every revoked key that has not expired. Leave it off until the app release that understands the field ships,
-  because older apps refuse a manifest with unknown keys.
+  changes. With `includeRevocations` on (the default), it carries `revokedLicenses`: `sha256("motionql-license-id:" + licenseId)`
+  of every revoked key that has not expired. Every released app (1.0.0 on) reads the field; only pre-release builds
+  refuse a manifest with unknown keys.
 - `POST /v1/ping`: the anonymous usage ping. Unknown fields are refused; only `firstSeen`/`lastSeen` and the ping's
   fields are stored, never the IP, and a TTL index deletes installs 25 months after they were last seen.
 - `GET /health`: `{ok: true}` when MongoDB answers.

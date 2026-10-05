@@ -131,8 +131,8 @@ export interface ManifestDoc {
   _id: 'current';
   requiredUpdate?: { stable?: RequiredUpdateRule; beta?: RequiredUpdateRule };
   notifications: ManifestNotification[];
-  /** Off until the app version that understands `revokedLicenses` ships; older apps refuse the whole manifest. */
-  includeRevocations: boolean;
+  /** Unset means on. Every released app (1.0.0 on) reads `revokedLicenses`; only pre-release builds refuse it. */
+  includeRevocations?: boolean;
   /** Last signed token, re-signed when the content or the revocation list changes. */
   token?: string;
   issuedAt?: Date;
@@ -222,6 +222,8 @@ export async function ensureIndexes(c: Collections): Promise<void> {
     c.auditEvents.createIndex({ at: -1 }),
     c.teams.createIndex({ name: 1 }),
   ]);
+  // Revocations used to default to off. Clear that stored default (never touched by staff) so the new default, on, applies.
+  await c.manifest.updateOne({ _id: 'current', includeRevocations: false, updatedBy: { $exists: false } }, { $unset: { includeRevocations: '' } });
 }
 
 export interface Database {

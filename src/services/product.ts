@@ -12,8 +12,11 @@ const PLATFORMS = ['darwin', 'win32', 'linux'];
 const ARCH = /^[a-z0-9_]{1,16}$/;
 const EDITIONS = ['trial', 'pro', 'enterprise', 'free'];
 
+/** On unless staff switched it off: every released app (1.0.0 on) reads `revokedLicenses`. */
+const revocationsOn = (doc: ManifestDoc) => doc.includeRevocations ?? true;
+
 async function manifestDoc(ctx: Ctx): Promise<ManifestDoc> {
-  return (await ctx.c.manifest.findOne({ _id: 'current' })) ?? { _id: 'current', notifications: [], includeRevocations: false, updatedAt: new Date(0) };
+  return (await ctx.c.manifest.findOne({ _id: 'current' })) ?? { _id: 'current', notifications: [], updatedAt: new Date(0) };
 }
 
 /**
@@ -42,7 +45,7 @@ const contentOf = (doc: ManifestDoc, revoked: string[] | undefined) => ({
  */
 export async function currentManifestToken(ctx: Ctx): Promise<string> {
   const doc = await manifestDoc(ctx);
-  const revoked = doc.includeRevocations ? await revokedHashes(ctx) : undefined;
+  const revoked = revocationsOn(doc) ? await revokedHashes(ctx) : undefined;
   const content = contentOf(doc, revoked);
   const digest = createHash('sha256').update(JSON.stringify(content)).digest('hex');
   if (doc.token && doc.signedDigest === digest) return doc.token;
@@ -53,7 +56,7 @@ export async function currentManifestToken(ctx: Ctx): Promise<string> {
   const token = signManifest(manifest, ctx.config.signingKey);
   await ctx.c.manifest.updateOne(
     { _id: 'current' },
-    { $set: { token, issuedAt, signedDigest: digest }, $setOnInsert: { notifications: [], includeRevocations: false, updatedAt: ctx.now() } },
+    { $set: { token, issuedAt, signedDigest: digest }, $setOnInsert: { notifications: [], updatedAt: ctx.now() } },
     { upsert: true },
   );
   return token;
@@ -64,7 +67,7 @@ export async function getManifestSettings(ctx: Ctx) {
   return {
     requiredUpdate: doc.requiredUpdate ?? null,
     notifications: doc.notifications,
-    includeRevocations: doc.includeRevocations,
+    includeRevocations: revocationsOn(doc),
     issuedAt: doc.issuedAt?.toISOString() ?? null,
     updatedAt: doc.updatedAt.toISOString(),
     updatedBy: doc.updatedBy ?? null,
@@ -96,7 +99,7 @@ export async function updateManifestSettings(
     {
       $set: {
         notifications: valid.notifications,
-        includeRevocations: input.includeRevocations ?? doc.includeRevocations,
+        includeRevocations: input.includeRevocations ?? revocationsOn(doc),
         updatedAt: ctx.now(),
         updatedBy: actor.email,
         ...(valid.requiredUpdate ? { requiredUpdate: valid.requiredUpdate } : {}),
@@ -107,7 +110,7 @@ export async function updateManifestSettings(
   );
   await audit(ctx, actor, 'manifest.update', {
     target: { type: 'manifest', id: 'current' },
-    details: { notifications: valid.notifications.length, requiredUpdate: valid.requiredUpdate ?? null, includeRevocations: input.includeRevocations ?? doc.includeRevocations },
+    details: { notifications: valid.notifications.length, requiredUpdate: valid.requiredUpdate ?? null, includeRevocations: input.includeRevocations ?? revocationsOn(doc) },
   });
 }
 
