@@ -110,13 +110,15 @@ describe('product service', () => {
     expect(b.payload.notifications[0].id).toBe('hello');
   });
 
-  it('lists revoked, unexpired keys only once revocations are switched on', async () => {
+  it('lists revoked, unexpired keys unless revocations are switched off', async () => {
     t = await makeApp();
     const staff = await makeStaff(t, 'staff@motionql.com');
     const lic = (await staff.post('/admin/licenses', { email: 'x@y.co', customer: 'X', edition: 'pro', durationDays: 10 })).json().license;
     await staff.post(`/admin/licenses/${lic.licenseId}/revoke`, { reason: 'leaked' });
-    expect((await manifest(t)).payload.revokedLicenses).toBeUndefined();
+    expect((await manifest(t)).payload.revokedLicenses).toEqual([licenseHashOf(lic.licenseId)]);
 
+    await staff.put('/admin/manifest', { includeRevocations: false });
+    expect((await manifest(t)).payload.revokedLicenses).toBeUndefined();
     await staff.put('/admin/manifest', { includeRevocations: true });
     expect((await manifest(t)).payload.revokedLicenses).toEqual([licenseHashOf(lic.licenseId)]);
     expect((await staff.get('/admin/manifest')).json()).toMatchObject({ includeRevocations: true, revokedCount: 1 });

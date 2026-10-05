@@ -17,7 +17,7 @@ This service holds the private key and signs one key per person:
 - **Teams.** A team has a seat limit (free for now; staff raise it). Admins invite people; a seat issues that person
   their own key with the team as customer. Removing someone frees the seat and revokes their key.
 - **Revocation.** Revoked keys are listed by hash in the signed manifest the app fetches every 4 hours
-  (`includeRevocations`, off until the app release that reads it ships).
+  (`includeRevocations`, on by default; every released app reads it).
 
 `src/licensing/licenseFormat.ts` and `manifest.ts` are copied from the app repo so both sides use the same signing
 code (the motionql-platform repo). Keep them byte-identical with the app when it changes.

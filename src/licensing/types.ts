@@ -63,8 +63,8 @@ export interface ProductManifest {
   requiredUpdate?: { stable?: RequiredUpdateRule; beta?: RequiredUpdateRule };
   notifications: ManifestNotification[];
   /**
-   * sha256("motionql-license-id:" + licenseId) of revoked, unexpired keys, lowercase hex; omitted when empty. Apps
-   * before Platform PR #51 refuse a manifest carrying it, so it is only sent when `includeRevocations` is on.
+   * sha256("motionql-license-id:" + licenseId) of revoked, unexpired keys, lowercase hex; omitted when empty. Sent unless
+   * staff switch `includeRevocations` off (pre-release builds before Platform PR #51 refuse a manifest carrying it).
    */
   revokedLicenses?: string[];
 }
