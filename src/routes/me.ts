@@ -5,6 +5,7 @@ import { clearSessionCookie, requireUser } from '../plugins/session.js';
 import { deleteAccount } from '../services/accountDeletion.js';
 import { updateProfile, userView } from '../services/accounts.js';
 import { licenseView, reissueOwnLicense, renewFreeLicense } from '../services/licenses.js';
+import { referralPreview, referralSummary } from '../services/referrals.js';
 import { getFreePlan } from '../services/settings.js';
 import { company, id, personName } from './schemas.js';
 
@@ -59,6 +60,18 @@ export const meRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
     const doc = await reissueOwnLicense(ctx, user, req.params.licenseId);
     return reply.code(201).send({ license: licenseView(doc, ctx.now()) });
   });
+
+  // Refer a friend: the user's invite link and how many people signed up with it.
+  app.get('/me/referral', { schema: { tags: ['me'] } }, async (req) => {
+    const user = await requireUser(ctx, req);
+    return referralSummary(ctx, user);
+  });
+
+  // The invite landing page (motionql.com/r/CODE): who invited you and the reward, if on.
+  app.get('/referrals/:code', {
+    config: { rateLimit: { max: ctx.config.rateLimit.authPerMinute, timeWindow: '1 minute' } },
+    schema: { tags: ['public'], params: z.object({ code: z.string().min(1).max(32) }) },
+  }, async (req) => referralPreview(ctx, req.params.code));
 
   app.get('/plans/free', { schema: { tags: ['public'] } }, async () => {
     const plan = await getFreePlan(ctx);

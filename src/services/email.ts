@@ -150,6 +150,27 @@ export const templates = {
       }),
     };
   },
+  referralReward(to: string, opts: { name: string; friendName: string; days: number; accountUrl: string; key?: string; expiresAt?: string }): Email {
+    const extra = opts.days % 30 === 0 ? `${opts.days / 30} extra month${opts.days === 30 ? '' : 's'}` : `${opts.days} extra days`;
+    return {
+      to,
+      subject: `You earned ${extra} of MotionQL Pro`,
+      ...layout({
+        heading: `Thanks for inviting ${opts.friendName || 'a friend'}`,
+        paragraphs: opts.key
+          ? [
+              `Hi ${opts.name}, ${opts.friendName || 'your friend'} joined MotionQL with your invite link, so you both get ${extra} of Pro.`,
+              `Here is your new key. It is valid until ${opts.expiresAt!.slice(0, 10)}. In MotionQL, open Settings → License, paste it and click Activate. Your current key keeps working until its own date.`,
+            ]
+          : [
+              `Hi ${opts.name}, ${opts.friendName || 'your friend'} joined MotionQL with your invite link, so you both get ${extra} of Pro.`,
+              'The extra time will be added to your next free license key, which you can get from your account.',
+            ],
+        button: { label: 'Open your account', url: opts.accountUrl },
+        ...(opts.key ? { code: opts.key, footer: 'Keep this key private: it is tied to your e-mail address.' } : {}),
+      }),
+    };
+  },
   invite(to: string, opts: { teamName: string; inviter: string; url: string; withSeat: boolean }): Email {
     return {
       to,

@@ -3,11 +3,11 @@ import { z } from 'zod';
 import type { Ctx } from '../context.js';
 import { actorOf, requireStaff } from '../plugins/session.js';
 import {
-  extendLicense, issueManual, overview, revokeByStaff, searchLicenses, searchTeams, searchUsers, setStaff, updateTeamLimits, userDetail,
+  extendLicense, issueManual, overview, referralStats, revokeByStaff, searchLicenses, searchTeams, searchUsers, setStaff, updateTeamLimits, userDetail,
 } from '../services/admin.js';
 import { licenseView } from '../services/licenses.js';
 import { getManifestSettings, updateManifestSettings } from '../services/product.js';
-import { getFreePlan, getTeamPlan, updateFreePlan, updateTeamPlan } from '../services/settings.js';
+import { getFreePlan, getReferralSettings, getTeamPlan, updateFreePlan, updateReferralSettings, updateTeamPlan } from '../services/settings.js';
 import { listAudit } from '../services/teams.js';
 import { edition, email, features, id, limit } from './schemas.js';
 
@@ -26,7 +26,7 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
   // The free-year switch: whether it is free, how long it lasts and which edition it gives.
   app.get('/admin/plans', { schema: { tags: ['admin'] } }, async (req) => {
     await requireStaff(ctx, req);
-    return { free: planView(await getFreePlan(ctx)), team: planView(await getTeamPlan(ctx)) };
+    return { free: planView(await getFreePlan(ctx)), team: planView(await getTeamPlan(ctx)), referral: planView(await getReferralSettings(ctx)) };
   });
 
   app.put('/admin/plans/free', {
@@ -44,6 +44,23 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
   }, async (req) => {
     const staff = await requireStaff(ctx, req);
     return { team: planView(await updateTeamPlan(ctx, actorOf(staff), req.body)) };
+  });
+
+  // Refer a friend: the reward switch, how many days each person gets, and the most rewards one inviter can earn.
+  app.put('/admin/plans/referral', {
+    schema: {
+      tags: ['admin'],
+      body: z.object({ enabled: z.boolean(), bonusDays: z.number().int().min(1).max(730), maxRewardsPerUser: z.number().int().min(0).max(1000) }).partial(),
+    },
+  }, async (req) => {
+    const staff = await requireStaff(ctx, req);
+    return { referral: planView(await updateReferralSettings(ctx, actorOf(staff), req.body)) };
+  });
+
+  // Who brings people in, and the answers to "How did you hear about us?".
+  app.get('/admin/referrals', { schema: { tags: ['admin'], querystring: z.object({ limit }) } }, async (req) => {
+    await requireStaff(ctx, req);
+    return referralStats(ctx, req.query.limit);
   });
 
   app.get('/admin/users', { schema: { tags: ['admin'], querystring: search } }, async (req) => {

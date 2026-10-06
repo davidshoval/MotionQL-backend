@@ -10,3 +10,4 @@ export const edition = z.enum(EDITIONS as unknown as [string, ...string[]]).tran
 export const features = z.array(z.enum(PRO_FEATURE_IDS)).max(32);
 export const id = z.string().min(1).max(64);
 export const limit = z.coerce.number().int().min(1).max(200).default(50);
+export const heardFrom = z.string().trim().max(100).optional();

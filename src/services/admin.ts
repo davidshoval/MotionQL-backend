@@ -27,6 +27,14 @@ export async function userDetail(ctx: Ctx, userId: string) {
   const now = ctx.now();
   return {
     user: userView(user),
+    referral: {
+      code: user.referralCode ?? null,
+      referredBy: user.referredBy ?? null,
+      heardFrom: user.heardFrom ?? null,
+      rewardedAt: user.referralRewardedAt?.toISOString() ?? null,
+      bonusDays: user.bonusDays ?? 0,
+      signups: await ctx.c.users.countDocuments({ referredBy: userId }),
+    },
     licenses: licenses.map((l) => licenseView(l, now)),
     teams: memberships.map((m) => ({ id: m.teamId, name: teams.find((t) => t._id === m.teamId)?.name ?? '', role: m.role, hasSeat: m.hasSeat })),
   };
@@ -119,4 +127,45 @@ export async function overview(ctx: Ctx) {
     usageStats(ctx),
   ]);
   return { users: { total: users, verified }, teams, licenses: { active: activeLicenses, revokedUnexpired: revoked }, ...usage };
+}
+
+/** Top inviters (sign-ups through their link) and how people heard about MotionQL. */
+export async function referralStats(ctx: Ctx, limit: number) {
+  const [inviters, heardFrom, referred, answered] = await Promise.all([
+    ctx.c.users
+      .aggregate<{ _id: string; signups: number; confirmed: number; rewarded: number }>([
+        { $match: { referredBy: { $type: 'string' } } },
+        {
+          $group: {
+            _id: '$referredBy',
+            signups: { $sum: 1 },
+            confirmed: { $sum: { $cond: [{ $ifNull: ['$emailVerifiedAt', false] }, 1, 0] } },
+            rewarded: { $sum: { $cond: [{ $ifNull: ['$referralRewardedAt', false] }, 1, 0] } },
+          },
+        },
+        { $sort: { signups: -1, _id: 1 } },
+        { $limit: limit },
+      ])
+      .toArray(),
+    ctx.c.users
+      .aggregate<{ _id: string; count: number }>([
+        { $match: { heardFrom: { $type: 'string' } } },
+        { $group: { _id: { $toLower: '$heardFrom' }, count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: limit },
+      ])
+      .toArray(),
+    ctx.c.users.countDocuments({ referredBy: { $type: 'string' } }),
+    ctx.c.users.countDocuments({ heardFrom: { $type: 'string' } }),
+  ]);
+  const users = new Map((await ctx.c.users.find({ _id: { $in: inviters.map((i) => i._id) } }).toArray()).map((u) => [u._id, u]));
+  return {
+    referredSignups: referred,
+    heardFromAnswers: answered,
+    topInviters: inviters.map((i) => {
+      const u = users.get(i._id);
+      return { userId: i._id, email: u?.email ?? null, name: u?.name ?? null, signups: i.signups, confirmed: i.confirmed, rewarded: i.rewarded };
+    }),
+    heardFrom: heardFrom.map((h) => ({ answer: h._id, count: h.count })),
+  };
 }
