@@ -13,6 +13,7 @@ import type { Collections } from './db.js';
 import { AppError } from './errors.js';
 import { adminRoutes } from './routes/admin.js';
 import { authRoutes } from './routes/auth.js';
+import { feedbackRoutes } from './routes/feedback.js';
 import { meRoutes } from './routes/me.js';
 import { productRoutes } from './routes/product.js';
 import { teamRoutes } from './routes/teams.js';
@@ -118,6 +119,7 @@ export async function buildApp(deps: AppDeps): Promise<{ app: FastifyInstance; c
   await app.register(teamRoutes(ctx));
   await app.register(adminRoutes(ctx));
   await app.register(productRoutes(ctx));
+  await app.register(feedbackRoutes(ctx));
 
   app.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());
 

@@ -154,6 +154,28 @@ export interface InstallDoc {
   licenseHash?: string;
 }
 
+export type FeedbackKind = 'bug' | 'idea' | 'praise' | 'other';
+export type FeedbackStatus = 'new' | 'read' | 'done';
+
+/** A message sent from the website's feedback form or the app's Help > Send feedback. */
+export interface FeedbackDoc {
+  _id: string;
+  kind: FeedbackKind;
+  message: string;
+  source: 'website' | 'app';
+  /** Where to reply; the signed-in user's address when they left it empty. */
+  email?: string;
+  userId?: string;
+  /** Website: the page the form was opened from. */
+  page?: string;
+  /** App: what it runs on, to reproduce a bug. */
+  app?: { version: string; platform: string; arch: string; channel?: string; edition?: string };
+  status: FeedbackStatus;
+  createdAt: Date;
+  updatedAt?: Date;
+  updatedBy?: string;
+}
+
 export interface AuditEventDoc {
   _id: string;
   at: Date;
@@ -161,7 +183,7 @@ export interface AuditEventDoc {
   actorEmail?: string;
   teamId?: string;
   action: string;
-  target?: { type: 'user' | 'team' | 'license' | 'invite' | 'settings' | 'manifest'; id: string; email?: string };
+  target?: { type: 'user' | 'team' | 'license' | 'invite' | 'settings' | 'manifest' | 'feedback'; id: string; email?: string };
   details?: Record<string, unknown>;
 }
 
@@ -177,6 +199,7 @@ export interface Collections {
   manifest: Collection<ManifestDoc>;
   installs: Collection<InstallDoc>;
   auditEvents: Collection<AuditEventDoc>;
+  feedback: Collection<FeedbackDoc>;
 }
 
 /** Privacy policy: an install record is deleted 25 months after it was last seen (docs/PRODUCT_SERVICE.md). */
@@ -195,6 +218,7 @@ export function collections(db: Db): Collections {
     manifest: db.collection('manifest'),
     installs: db.collection('installs'),
     auditEvents: db.collection('auditEvents'),
+    feedback: db.collection('feedback'),
   };
 }
 
@@ -221,6 +245,7 @@ export async function ensureIndexes(c: Collections): Promise<void> {
     c.auditEvents.createIndex({ teamId: 1, at: -1 }),
     c.auditEvents.createIndex({ at: -1 }),
     c.teams.createIndex({ name: 1 }),
+    c.feedback.createIndex({ status: 1, _id: -1 }),
   ]);
   // Revocations used to default to off. Clear that stored default (never touched by staff) so the new default, on, applies.
   await c.manifest.updateOne({ _id: 'current', includeRevocations: false, updatedBy: { $exists: false } }, { $unset: { includeRevocations: '' } });

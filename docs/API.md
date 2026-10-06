@@ -120,6 +120,19 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 | `POST /admin/licenses/:licenseId/extend` | `days`: a replacement key that runs that much longer |
 | `GET /admin/manifest` · `PUT /admin/manifest` | `requiredUpdate, notifications, includeRevocations` (checked with the app's manifest validator) |
 | `GET /admin/audit?teamId=&before=&limit=` | Everything, newest first |
+| `GET /admin/feedback?status=&before=&limit=` | Feedback, newest first: `{feedback, nextCursor}` |
+| `PATCH /admin/feedback/:feedbackId` | `status`: `new`, `read` or `done` |
+
+## Feedback
+
+Stored in the `feedback` collection and e-mailed to every address in `STAFF_EMAILS`, with Reply-To set to the
+sender's address when there is one. A failed e-mail never fails the request. Both routes allow 10 per minute per IP
+and answer `204`.
+
+| Method and path | Body |
+|---|---|
+| `POST /feedback` | The website form: `kind` (`bug`, `idea`, `praise`, `other`), `message` (3 to 5000 characters), `email` (optional; a signed-in user's own address when empty), `page` (optional path, e.g. `/pricing`). A hidden `website` field that bots fill in makes the message be dropped. |
+| `POST /v1/feedback` | The app's Help > Send feedback, no cookies: `kind`, `message`, `email` (optional), `app: {version, platform, arch, channel?, edition?}`. Unknown fields are refused. |
 
 ## Desktop app (product service)
 
