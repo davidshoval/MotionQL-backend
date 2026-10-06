@@ -8,6 +8,8 @@ export interface Email {
   subject: string;
   text: string;
   html: string;
+  /** Replies go here instead of to EMAIL_FROM (feedback: the sender). */
+  replyTo?: string;
 }
 
 export interface Mailer {
@@ -43,7 +45,7 @@ export class ResendMailer implements Mailer {
     const res = await this.fetchImpl('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: this.from, to: [email.to], subject: email.subject, text: email.text, html: email.html }),
+      body: JSON.stringify({ from: this.from, to: [email.to], subject: email.subject, text: email.text, html: email.html, ...(email.replyTo ? { reply_to: email.replyTo } : {}) }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
@@ -71,7 +73,7 @@ export class SmtpMailer implements Mailer {
     });
   }
   async send(email: Email): Promise<void> {
-    await this.transport.sendMail({ from: this.from, to: email.to, subject: email.subject, text: email.text, html: email.html });
+    await this.transport.sendMail({ from: this.from, to: email.to, subject: email.subject, text: email.text, html: email.html, ...(email.replyTo ? { replyTo: email.replyTo } : {}) });
   }
 }
 
@@ -174,6 +176,24 @@ export const templates = {
           `An admin of ${opts.teamName} removed your seat. Your team license key stops working within a few hours.`,
           'Your MotionQL account stays, and everything that is free in the app keeps working.',
         ],
+      }),
+    };
+  },
+  feedback(to: string, opts: { kind: string; message: string; from?: string; where: string }): Email {
+    const firstLine = opts.message.split('\n').find((l) => l.trim())?.trim() ?? '';
+    const preview = firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+    return {
+      to,
+      subject: `MotionQL feedback (${opts.kind}): ${preview}`,
+      ...(opts.from ? { replyTo: opts.from } : {}),
+      ...layout({
+        heading: `New feedback: ${opts.kind}`,
+        paragraphs: [
+          ...opts.message.split(/\n+/).map((l) => l.trim()).filter(Boolean),
+          `From: ${opts.from ?? 'no e-mail address given'}`,
+          `Sent from: ${opts.where}`,
+        ],
+        footer: opts.from ? 'Reply to this e-mail to answer the sender.' : 'The sender left no e-mail address, so there is no one to reply to.',
       }),
     };
   },
