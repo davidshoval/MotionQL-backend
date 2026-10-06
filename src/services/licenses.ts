@@ -149,7 +149,13 @@ export async function reissueLicense(ctx: Ctx, old: LicenseDoc, actor: Pick<Acto
 export const remainingDays = (doc: LicenseDoc, now: Date) =>
   Math.max(1, Math.ceil((doc.expiresAt.getTime() - now.getTime()) / 86_400_000));
 
-const customerFor = (user: Pick<UserDoc, 'name' | 'company'>) => user.company || user.name;
+export const customerFor = (user: Pick<UserDoc, 'name' | 'company'>) => user.company || user.name;
+
+/** Referral reward days banked on the account (see services/referrals.ts), cleared as they go into a new free key. */
+async function takeBonusDays(ctx: Ctx, userId: string): Promise<number> {
+  const before = await ctx.c.users.findOneAndUpdate({ _id: userId, bonusDays: { $gt: 0 } }, { $unset: { bonusDays: '' } });
+  return before?.bonusDays ?? 0;
+}
 
 /** Issues the free-plan key once a user is verified, unless they already hold an active one. */
 export async function grantFreeLicense(ctx: Ctx, user: UserDoc): Promise<LicenseDoc | undefined> {
@@ -168,7 +174,7 @@ export async function grantFreeLicense(ctx: Ctx, user: UserDoc): Promise<License
     customer: customerFor(user),
     edition: plan.edition,
     features: plan.features,
-    durationDays: plan.durationDays,
+    durationDays: plan.durationDays + (await takeBonusDays(ctx, user._id)),
     userId: user._id,
     actor: { id: user._id, email: user.email },
   });
@@ -200,7 +206,7 @@ export async function renewFreeLicense(ctx: Ctx, user: UserDoc): Promise<License
     customer: customerFor(user),
     edition: plan.edition,
     features: plan.features,
-    durationDays: plan.durationDays,
+    durationDays: plan.durationDays + (await takeBonusDays(ctx, user._id)),
     userId: user._id,
     actor: { id: user._id, email: user.email },
   });

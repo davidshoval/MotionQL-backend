@@ -38,7 +38,7 @@ Base URL `https://api.motionql.com` (development `http://localhost:4000`). The m
 
 | Method and path | Body | Result |
 |---|---|---|
-| `POST /auth/register` | `email, password (10+), name, company?, turnstileToken?` | `201 {user}`. E-mails a link to `WEB_URL/verify-email?token=…` (valid 24 h). No session yet. |
+| `POST /auth/register` | `email, password (10+), name, company?, turnstileToken?, referralCode?, heardFrom? (100 chars)` | `201 {user}`. E-mails a link to `WEB_URL/verify-email?token=…` (valid 24 h). No session yet. |
 | `POST /auth/verify-email` | `token` | `{user}`, sets the session, issues the free key and e-mails it. |
 | `POST /auth/resend-verification` | `email` | `204` always (never reveals whether an account exists). |
 | `POST /auth/login` | `email, password` | `{user}` and the session cookie. |
@@ -64,6 +64,19 @@ Base URL `https://api.motionql.com` (development `http://localhost:4000`). The m
 `license` = `{licenseId, key, edition, features, customer, email, seats, issuedAt, expiresAt, status, source, revokedAt?, team?: {id, name}}`.
 `key` is the full `MQL1.…` key the user pastes into Settings → License. `status` is `active`, `expired`, `revoked` or
 `replaced` (reissued). `source` is `free`, `team` or `staff`.
+
+## Refer a friend
+
+| Method and path | Result |
+|---|---|
+| `GET /me/referral` | `{code, url, signups, confirmed, rewarded, reward: {bonusDays, maxRewards, remaining} \| null}`. `url` is `WEB_URL/r/CODE`; accounts made before referrals get a code on first call. |
+| `GET /referrals/:code` | Public, for the `/r/CODE` landing page: `{code, inviterName (first name only), reward: {bonusDays} \| null}`; `404` for an unknown code. Case-insensitive. |
+
+Signing up with `referralCode` records who invited the user (an unknown code is ignored). `reward` is `null` while the
+staff switch is off (the default). When it is on and the invited user confirms their e-mail, both get `bonusDays` more:
+the friend's first free key runs that much longer, and the inviter gets a new free key running `bonusDays` past their
+current one, by e-mail (the old key keeps working to its own date). An inviter with no active free key gets the days
+on their next free key. Each invited user pays out once, and each inviter earns at most `maxRewardsPerUser` rewards.
 
 ## Downloads
 
@@ -109,10 +122,12 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 | Method and path | Purpose |
 |---|---|
 | `GET /admin/overview` | Users, teams, active and revoked keys, active installs |
-| `GET /admin/plans` | `{free, team}` settings |
+| `GET /admin/plans` | `{free, team, referral}` settings |
 | `PUT /admin/plans/free` | `enabled, edition, features, durationDays, renewable, renewWindowDays` (any subset). The free-year switch: applies to keys issued after the change. |
 | `PUT /admin/plans/team` | `defaultSeatLimit, edition, durationDays` for new teams and seats |
-| `GET /admin/users?q=` · `GET /admin/users/:userId` · `PUT /admin/users/:userId/staff` | Look up users; grant or remove staff |
+| `PUT /admin/plans/referral` | `enabled` (default `false`), `bonusDays` (90), `maxRewardsPerUser` (12): the refer-a-friend reward |
+| `GET /admin/referrals?limit=` | `{referredSignups, heardFromAnswers, topInviters: [{userId, email, name, signups, confirmed, rewarded}], heardFrom: [{answer, count}]}` |
+| `GET /admin/users?q=` · `GET /admin/users/:userId` · `PUT /admin/users/:userId/staff` | Look up users (the detail includes `referral: {code, referredBy, heardFrom, rewardedAt, bonusDays, signups}`); grant or remove staff |
 | `GET /admin/teams?q=` · `PATCH /admin/teams/:teamId` | `seatLimit, allowedEditions, allowedFeatures` |
 | `GET /admin/licenses?q=` | Search by license id, hash, e-mail or customer |
 | `POST /admin/licenses` | `email, customer, edition, features, durationDays`: a key by hand |

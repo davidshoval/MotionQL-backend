@@ -14,6 +14,16 @@ export interface UserDoc {
   passwordHash: string;
   emailVerifiedAt?: Date;
   isStaff: boolean;
+  /** The code in the user's invite link (motionql.com/r/CODE). Upper-case; unique. Older accounts get one on first use. */
+  referralCode?: string;
+  /** The user whose invite link this account signed up with. */
+  referredBy?: string;
+  /** Answer to "How did you hear about us?" at sign-up. */
+  heardFrom?: string;
+  /** Set on the invited user once the referral reward went to both people, so it is paid once. */
+  referralRewardedAt?: Date;
+  /** Referral reward days waiting for the user's next free key (they had no active free key when earned). */
+  bonusDays?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -125,7 +135,20 @@ export interface TeamPlanSettings {
   updatedBy?: string;
 }
 
-export type PlanDoc = FreePlanSettings | TeamPlanSettings;
+/** Refer a friend: both people get extra days on their free key when the invited user confirms their e-mail. */
+export interface ReferralSettings {
+  _id: 'referral';
+  /** Off by default: links and counts always work, the reward only while this is on. */
+  enabled: boolean;
+  /** Days added for the inviter and for the friend. */
+  bonusDays: number;
+  /** Most rewards one inviter can earn. */
+  maxRewardsPerUser: number;
+  updatedAt?: Date;
+  updatedBy?: string;
+}
+
+export type PlanDoc = FreePlanSettings | TeamPlanSettings | ReferralSettings;
 
 export interface ManifestDoc {
   _id: 'current';
@@ -225,6 +248,8 @@ export function collections(db: Db): Collections {
 export async function ensureIndexes(c: Collections): Promise<void> {
   await Promise.all([
     c.users.createIndex({ email: 1 }, { unique: true }),
+    c.users.createIndex({ referralCode: 1 }, { unique: true, partialFilterExpression: { referralCode: { $type: 'string' } } }),
+    c.users.createIndex({ referredBy: 1 }, { partialFilterExpression: { referredBy: { $type: 'string' } } }),
     c.sessions.createIndex({ userId: 1 }),
     c.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     c.emailTokens.createIndex({ userId: 1, purpose: 1 }),

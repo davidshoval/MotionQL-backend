@@ -1,5 +1,5 @@
 import type { Actor, Ctx } from '../context.js';
-import type { FreePlanSettings, TeamPlanSettings } from '../db.js';
+import type { FreePlanSettings, ReferralSettings, TeamPlanSettings } from '../db.js';
 import { audit } from './audit.js';
 
 /** Owner decision (1 Oct 2026): every registered user gets a free 1-year Pro key for now. */
@@ -19,6 +19,14 @@ export const DEFAULT_TEAM_PLAN: TeamPlanSettings = {
   defaultSeatLimit: 25,
   edition: 'pro',
   durationDays: 365,
+};
+
+/** Refer a friend: three extra months each, off until the owner turns it on (6 Oct 2026). */
+export const DEFAULT_REFERRAL: ReferralSettings = {
+  _id: 'referral',
+  enabled: false,
+  bonusDays: 90,
+  maxRewardsPerUser: 12,
 };
 
 export async function getFreePlan(ctx: Ctx): Promise<FreePlanSettings> {
@@ -42,5 +50,17 @@ export async function updateTeamPlan(ctx: Ctx, actor: Actor, patch: Partial<Omit
   const next = { ...(await getTeamPlan(ctx)), ...patch, updatedAt: ctx.now(), updatedBy: actor.email };
   await ctx.c.plans.replaceOne({ _id: 'team' }, next, { upsert: true });
   await audit(ctx, actor, 'settings.team_plan.update', { target: { type: 'settings', id: 'team' }, details: patch });
+  return next;
+}
+
+export async function getReferralSettings(ctx: Ctx): Promise<ReferralSettings> {
+  const doc = (await ctx.c.plans.findOne({ _id: 'referral' })) as ReferralSettings | null;
+  return { ...DEFAULT_REFERRAL, ...doc };
+}
+
+export async function updateReferralSettings(ctx: Ctx, actor: Actor, patch: Partial<Omit<ReferralSettings, '_id'>>): Promise<ReferralSettings> {
+  const next = { ...(await getReferralSettings(ctx)), ...patch, updatedAt: ctx.now(), updatedBy: actor.email };
+  await ctx.c.plans.replaceOne({ _id: 'referral' }, next, { upsert: true });
+  await audit(ctx, actor, 'settings.referral.update', { target: { type: 'settings', id: 'referral' }, details: patch });
   return next;
 }

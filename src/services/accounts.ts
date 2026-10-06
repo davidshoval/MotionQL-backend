@@ -9,6 +9,7 @@ import { hashToken, newToken } from '../lib/tokens.js';
 import { audit } from './audit.js';
 import { templates } from './email.js';
 import { grantFreeLicense } from './licenses.js';
+import { newReferralCode, referrerForCode, rewardReferral } from './referrals.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const TOKEN_TTL_MS: Record<EmailTokenPurpose, number> = { 'verify-email': 24 * HOUR_MS, 'password-reset': HOUR_MS };
@@ -71,11 +72,24 @@ async function sendVerification(ctx: Ctx, user: UserDoc): Promise<void> {
   await ctx.mailer.send(templates.verifyEmail(user.email, user.name, url));
 }
 
-export async function register(ctx: Ctx, input: { email: string; password: string; name: string; company?: string }): Promise<UserDoc> {
+export interface RegisterInput {
+  email: string;
+  password: string;
+  name: string;
+  company?: string;
+  /** The code from an invite link (motionql.com/r/CODE); an unknown code is ignored. */
+  referralCode?: string;
+  /** "How did you hear about us?" (optional). */
+  heardFrom?: string;
+}
+
+export async function register(ctx: Ctx, input: RegisterInput): Promise<UserDoc> {
   const email = normalizeEmail(input.email);
   if (isDisposableEmail(email)) {
     throw badRequest('validation_failed', 'Please use a permanent e-mail address.', { email: 'Disposable e-mail addresses are not accepted.' });
   }
+  const referrer = await referrerForCode(ctx, input.referralCode);
+  const heardFrom = input.heardFrom?.trim();
   const now = ctx.now();
   const user: UserDoc = {
     _id: newId('usr'),
@@ -84,18 +98,33 @@ export async function register(ctx: Ctx, input: { email: string; password: strin
     ...(input.company?.trim() ? { company: input.company.trim() } : {}),
     passwordHash: await hashPassword(input.password),
     isStaff: false,
+    referralCode: newReferralCode(),
+    ...(referrer ? { referredBy: referrer._id } : {}),
+    ...(heardFrom ? { heardFrom } : {}),
     createdAt: now,
     updatedAt: now,
   };
-  try {
-    await ctx.c.users.insertOne(user);
-  } catch (error) {
-    if ((error as { code?: number }).code === 11000) {
-      throw conflict('email_taken', 'An account with this e-mail already exists. Sign in or reset your password.');
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await ctx.c.users.insertOne(user);
+      break;
+    } catch (error) {
+      const e = error as { code?: number; keyPattern?: Record<string, unknown> };
+      // A clash on the random invite code (1 in 32^8 per account): pick another.
+      if (e.code === 11000 && e.keyPattern?.referralCode && attempt < 4) {
+        user.referralCode = newReferralCode();
+        continue;
+      }
+      if (e.code === 11000) {
+        throw conflict('email_taken', 'An account with this e-mail already exists. Sign in or reset your password.');
+      }
+      throw error;
     }
-    throw error;
   }
-  await audit(ctx, { id: user._id, email }, 'user.register', { target: { type: 'user', id: user._id, email } });
+  await audit(ctx, { id: user._id, email }, 'user.register', {
+    target: { type: 'user', id: user._id, email },
+    ...(referrer ? { details: { referredBy: referrer._id } } : {}),
+  });
   await sendVerification(ctx, user);
   return user;
 }
@@ -117,6 +146,8 @@ export async function verifyEmail(ctx: Ctx, token: string): Promise<UserDoc> {
   if (!user) throw badRequest('invalid_token', 'This link is invalid or has expired.');
   user = await applyStaffList(ctx, user);
   await audit(ctx, { id: user._id, email: user.email }, 'user.verify_email', { target: { type: 'user', id: user._id, email: user.email } });
+  // Before the free key, so the invited user's own reward goes into that first key.
+  await rewardReferral(ctx, user);
   const license = await grantFreeLicense(ctx, user);
   if (license) {
     await ctx.mailer.send(
