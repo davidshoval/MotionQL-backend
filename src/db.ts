@@ -24,8 +24,20 @@ export interface UserDoc {
   referralRewardedAt?: Date;
   /** Referral reward days waiting for the user's next free key (they had no active free key when earned). */
   bonusDays?: number;
+  /** First-touch marketing attribution the website sent with sign-up (only the fields it had). */
+  attribution?: Attribution;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Where a visitor first came from: the utm_* tags of their first page, that page's path and the referring host. */
+export interface Attribution {
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  landingPath?: string;
+  referrerHost?: string;
 }
 
 export interface SessionDoc {
@@ -177,6 +189,23 @@ export interface InstallDoc {
   licenseHash?: string;
 }
 
+export const USAGE_EVENTS = ['app_open', 'first_connection', 'active_day'] as const;
+export type UsageEventName = (typeof USAGE_EVENTS)[number];
+
+/** One opt-in usage ping from the app (POST /v1/usage). The server sets `at`; nothing about the request (IP) is kept. */
+export interface UsageEventDoc {
+  _id: string;
+  /** Random UUID the app generates once; not derived from the hardware. */
+  installId: string;
+  appVersion: string;
+  os: string;
+  arch: string;
+  event: UsageEventName;
+  /** sha256("motionql-license-id:" + licenseId) of the key in the app, when it has one (sent as `licenseId`). */
+  licenseHash?: string;
+  at: Date;
+}
+
 export type FeedbackKind = 'bug' | 'idea' | 'praise' | 'other';
 export type FeedbackStatus = 'new' | 'read' | 'done';
 
@@ -223,6 +252,7 @@ export interface Collections {
   installs: Collection<InstallDoc>;
   auditEvents: Collection<AuditEventDoc>;
   feedback: Collection<FeedbackDoc>;
+  usageEvents: Collection<UsageEventDoc>;
 }
 
 /** Privacy policy: an install record is deleted 25 months after it was last seen (docs/PRODUCT_SERVICE.md). */
@@ -242,6 +272,7 @@ export function collections(db: Db): Collections {
     installs: db.collection('installs'),
     auditEvents: db.collection('auditEvents'),
     feedback: db.collection('feedback'),
+    usageEvents: db.collection('usage_events'),
   };
 }
 
@@ -250,6 +281,7 @@ export async function ensureIndexes(c: Collections): Promise<void> {
     c.users.createIndex({ email: 1 }, { unique: true }),
     c.users.createIndex({ referralCode: 1 }, { unique: true, partialFilterExpression: { referralCode: { $type: 'string' } } }),
     c.users.createIndex({ referredBy: 1 }, { partialFilterExpression: { referredBy: { $type: 'string' } } }),
+    c.users.createIndex({ createdAt: 1 }),
     c.sessions.createIndex({ userId: 1 }),
     c.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     c.emailTokens.createIndex({ userId: 1, purpose: 1 }),
@@ -271,6 +303,8 @@ export async function ensureIndexes(c: Collections): Promise<void> {
     c.auditEvents.createIndex({ at: -1 }),
     c.teams.createIndex({ name: 1 }),
     c.feedback.createIndex({ status: 1, _id: -1 }),
+    c.usageEvents.createIndex({ installId: 1, at: 1 }),
+    c.usageEvents.createIndex({ at: 1 }, { expireAfterSeconds: INSTALL_RETENTION_SECONDS }),
   ]);
   // Revocations used to default to off. Clear that stored default (never touched by staff) so the new default, on, applies.
   await c.manifest.updateOne({ _id: 'current', includeRevocations: false, updatedBy: { $exists: false } }, { $unset: { includeRevocations: '' } });
