@@ -35,6 +35,7 @@ export async function userDetail(ctx: Ctx, userId: string) {
       bonusDays: user.bonusDays ?? 0,
       signups: await ctx.c.users.countDocuments({ referredBy: userId }),
     },
+    attribution: user.attribution ?? null,
     licenses: licenses.map((l) => licenseView(l, now)),
     teams: memberships.map((m) => ({ id: m.teamId, name: teams.find((t) => t._id === m.teamId)?.name ?? '', role: m.role, hasSeat: m.hasSeat })),
   };

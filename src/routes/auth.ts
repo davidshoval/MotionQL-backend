@@ -5,7 +5,7 @@ import { clearSessionCookie, requireUser, SESSION_COOKIE, startSession } from '.
 import {
   changePassword, checkTurnstile, deleteSession, login, register, requestPasswordReset, resendVerification, resetPassword, userView, verifyEmail,
 } from '../services/accounts.js';
-import { company, email, heardFrom, password, personName, token } from './schemas.js';
+import { attribution, company, email, heardFrom, password, personName, token } from './schemas.js';
 
 export const authRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
   const strict = { config: { rateLimit: { max: ctx.config.rateLimit.authPerMinute, timeWindow: '1 minute' } } };
@@ -14,7 +14,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
     ...strict,
     schema: { tags: ['auth'], body: z.object({
         email, password, name: personName, company: company.optional(), turnstileToken: z.string().max(4096).optional(),
-        referralCode: z.string().max(32).optional(), heardFrom,
+        referralCode: z.string().max(32).optional(), heardFrom, attribution,
       }) },
   }, async (req, reply) => {
     await checkTurnstile(ctx, req.body.turnstileToken, req.ip);

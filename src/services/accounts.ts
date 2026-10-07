@@ -1,5 +1,5 @@
 import type { Ctx } from '../context.js';
-import type { EmailTokenPurpose, UserDoc } from '../db.js';
+import type { Attribution, EmailTokenPurpose, UserDoc } from '../db.js';
 import { AppError, badRequest, conflict, unauthorized } from '../errors.js';
 import { isDisposableEmail } from '../lib/disposable.js';
 import { newId } from '../lib/ids.js';
@@ -81,6 +81,21 @@ export interface RegisterInput {
   referralCode?: string;
   /** "How did you hear about us?" (optional). */
   heardFrom?: string;
+  /** First-touch utm_* tags, landing path and referring host, recorded by the website. */
+  attribution?: Attribution;
+}
+
+const ATTRIBUTION_FIELDS = ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'landingPath', 'referrerHost'] as const;
+
+/** Keeps the non-empty fields; undefined when none is left. Hosts are lower-cased so the report groups them. */
+export function cleanAttribution(input: Attribution | undefined): Attribution | undefined {
+  if (!input) return undefined;
+  const out: Attribution = {};
+  for (const key of ATTRIBUTION_FIELDS) {
+    const value = input[key]?.trim();
+    if (value) out[key] = key === 'referrerHost' ? value.toLowerCase() : value;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export async function register(ctx: Ctx, input: RegisterInput): Promise<UserDoc> {
@@ -90,6 +105,7 @@ export async function register(ctx: Ctx, input: RegisterInput): Promise<UserDoc>
   }
   const referrer = await referrerForCode(ctx, input.referralCode);
   const heardFrom = input.heardFrom?.trim();
+  const attribution = cleanAttribution(input.attribution);
   const now = ctx.now();
   const user: UserDoc = {
     _id: newId('usr'),
@@ -101,6 +117,7 @@ export async function register(ctx: Ctx, input: RegisterInput): Promise<UserDoc>
     referralCode: newReferralCode(),
     ...(referrer ? { referredBy: referrer._id } : {}),
     ...(heardFrom ? { heardFrom } : {}),
+    ...(attribution ? { attribution } : {}),
     createdAt: now,
     updatedAt: now,
   };

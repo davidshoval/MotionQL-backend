@@ -38,7 +38,7 @@ Base URL `https://api.motionql.com` (development `http://localhost:4000`). The m
 
 | Method and path | Body | Result |
 |---|---|---|
-| `POST /auth/register` | `email, password (10+), name, company?, turnstileToken?, referralCode?, heardFrom? (100 chars)` | `201 {user}`. E-mails a link to `WEB_URL/verify-email?token=…` (valid 24 h). No session yet. |
+| `POST /auth/register` | `email, password (10+), name, company?, turnstileToken?, referralCode?, heardFrom? (100 chars), attribution?` | `201 {user}`. E-mails a link to `WEB_URL/verify-email?token=…` (valid 24 h). No session yet. |
 | `POST /auth/verify-email` | `token` | `{user}`, sets the session, issues the free key and e-mails it. |
 | `POST /auth/resend-verification` | `email` | `204` always (never reveals whether an account exists). |
 | `POST /auth/login` | `email, password` | `{user}` and the session cookie. |
@@ -51,6 +51,12 @@ Base URL `https://api.motionql.com` (development `http://localhost:4000`). The m
 | `DELETE /me` | `password` | `204`. Deletes the account, revokes its keys, leaves its teams. `409 owns_team` while it owns a team with other members. |
 
 `user` = `{id, email, name, company?, emailVerified, isStaff, createdAt}`.
+
+`attribution` is where the visitor first came from, recorded by the website on their first page (first touch) and sent
+with sign-up: `{utmSource?, utmMedium?, utmCampaign?, utmContent?, landingPath?, referrerHost?}`. The four `utm*`
+fields are up to 100 characters, `landingPath` up to 300 and starting with `/`, `referrerHost` a host name (letters,
+digits, `.`, `-`, optional `:port`) up to 253. No control characters; anything else is `400 validation_failed`. Empty
+fields are dropped and `referrerHost` is lower-cased; it is stored on the user and shown in the staff user detail.
 
 ## License keys
 
@@ -127,7 +133,9 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 | `PUT /admin/plans/team` | `defaultSeatLimit, edition, durationDays` for new teams and seats |
 | `PUT /admin/plans/referral` | `enabled` (default `false`), `bonusDays` (90), `maxRewardsPerUser` (12): the refer-a-friend reward |
 | `GET /admin/referrals?limit=` | `{referredSignups, heardFromAnswers, topInviters: [{userId, email, name, signups, confirmed, rewarded}], heardFrom: [{answer, count}]}` |
-| `GET /admin/users?q=` · `GET /admin/users/:userId` · `PUT /admin/users/:userId/staff` | Look up users (the detail includes `referral: {code, referredBy, heardFrom, rewardedAt, bonusDays, signups}`); grant or remove staff |
+| `GET /admin/acquisition?from=&to=` | Sign-ups per first-touch `utm_source`, below |
+| `GET /admin/retention?from=&to=` | App install retention from the opt-in usage pings, below |
+| `GET /admin/users?q=` · `GET /admin/users/:userId` · `PUT /admin/users/:userId/staff` | Look up users (the detail includes `referral: {code, referredBy, heardFrom, rewardedAt, bonusDays, signups}` and `attribution` or `null`); grant or remove staff |
 | `GET /admin/teams?q=` · `PATCH /admin/teams/:teamId` | `seatLimit, allowedEditions, allowedFeatures` |
 | `GET /admin/licenses?q=` | Search by license id, hash, e-mail or customer |
 | `POST /admin/licenses` | `email, customer, edition, features, durationDays`: a key by hand |
@@ -137,6 +145,42 @@ Staff only (`npm run make-staff -- you@example.com`). Every change is in the aud
 | `GET /admin/audit?teamId=&before=&limit=` | Everything, newest first |
 | `GET /admin/feedback?status=&before=&limit=` | Feedback, newest first: `{feedback, nextCursor}` |
 | `PATCH /admin/feedback/:feedbackId` | `status`: `new`, `read` or `done` |
+
+### Acquisition and retention
+
+Both take an optional `from` (inclusive) and `to` (exclusive): an ISO date-time or a bare date (`2026-10-01`, midnight
+UTC). `from` must be before `to`, or `400`. Without them the report covers everything.
+
+`GET /admin/acquisition` counts accounts created in the range, grouped by `attribution.utmSource` (lower-cased;
+`null` for sign-ups without one):
+
+```json
+{ "from": "2026-10-01T00:00:00.000Z", "to": null,
+  "totals": { "signups": 10, "confirmed": 9, "companies": 5, "activated": 2 },
+  "sources": [{ "utmSource": "newsletter", "signups": 7, "confirmed": 6, "companies": 3, "companies2Plus": 2, "companies3Plus": 1, "activated": 2 }] }
+```
+
+- `companies`: distinct e-mail domains among those sign-ups, leaving out personal mailboxes (`gmail.com`,
+  `outlook.com`, `gmx.*`, `yandex.*` and the rest of `src/lib/freeMail.ts`).
+- `companies2Plus` / `companies3Plus`: of those companies, how many have 2+ / 3+ accounts at their domain created
+  before `to`, whatever brought those colleagues in. A company can count under more than one source.
+- `activated`: users with a key (any source) whose hash the app has sent in `POST /v1/ping`.
+- `sources` is sorted by sign-ups, most first.
+
+`GET /admin/retention` builds on `POST /v1/usage`. An install's first day is the UTC day of its first event; the range
+filters on it. `dN` counts installs active (any event) on the Nth day after their first day, among those for which
+that day is already over:
+
+```json
+{ "from": null, "to": null, "days": [1, 7, 30],
+  "totals": { "installs": 4, "linkedInstalls": 2, "d1": { "eligible": 3, "retained": 2, "rate": 0.667 }, "d7": {…}, "d30": {…} },
+  "cohorts": [{ "week": "2026-09-28", "installs": 3, "d1": {…}, "d7": {…}, "d30": {…} }],
+  "bySource": [{ "utmSource": "newsletter", "installs": 1, "d1": {…}, "d7": {…}, "d30": {…} }] }
+```
+
+`week` is the Monday (UTC) of the cohort. `rate` is `retained / eligible` (3 decimals), `null` while nobody is eligible.
+`bySource` only holds installs linked to an account: the latest `licenseId` the install sent matches a key owned by a
+user, grouped by that user's `utmSource` (`null` when they have none). `linkedInstalls` is how many those are.
 
 ## Feedback
 
@@ -159,4 +203,22 @@ Exactly as the app's `docs/PRODUCT_SERVICE.md` describes:
   refuse a manifest with unknown keys.
 - `POST /v1/ping`: the anonymous usage ping. Unknown fields are refused; only `firstSeen`/`lastSeen` and the ping's
   fields are stored, never the IP, and a TTL index deletes installs 25 months after they were last seen.
+- `POST /v1/usage`: opt-in usage events; the app sends them only after the user turns them on in its settings. No
+  cookies. Body (unknown fields are refused, `400`):
+
+  | Field | |
+  |---|---|
+  | `installId` | Random UUID the app generates once; not derived from the hardware |
+  | `appVersion` | e.g. `1.4.2` |
+  | `os` | `process.platform` style: lower-case letters, digits, `_`, up to 16 (`darwin`, `win32`, `linux`) |
+  | `arch` | Same rule (`arm64`, `x64`) |
+  | `event` | `app_open`, `first_connection` or `active_day` |
+  | `licenseId` | Optional, sent only while a paid license is active. The license hash the app already has, `sha256("motionql-license-id:" + licenseId)`, 64 hex |
+
+  `app_open` is stored every time. Only the first `first_connection` per `installId` is kept (installs that upgrade
+  send one late; repeats are ignored), and one `active_day` per `installId` per UTC day. Repeats still answer `204`.
+
+  Answers `204`. Stored in `usage_events` with the server's date (`at`); `licenseId` is kept as `licenseHash`. Never
+  the IP or any other request detail. A TTL index deletes events 25 months after they were written. Rate-limited per
+  IP like `/v1/feedback` (10 per minute).
 - `GET /health`: `{ok: true}` when MongoDB answers.

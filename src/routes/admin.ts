@@ -5,14 +5,21 @@ import { actorOf, requireStaff } from '../plugins/session.js';
 import {
   extendLicense, issueManual, overview, referralStats, revokeByStaff, searchLicenses, searchTeams, searchUsers, setStaff, updateTeamLimits, userDetail,
 } from '../services/admin.js';
+import { acquisitionReport } from '../services/acquisition.js';
 import { licenseView } from '../services/licenses.js';
 import { getManifestSettings, updateManifestSettings } from '../services/product.js';
 import { getFreePlan, getReferralSettings, getTeamPlan, updateFreePlan, updateReferralSettings, updateTeamPlan } from '../services/settings.js';
 import { listAudit } from '../services/teams.js';
+import { retentionReport } from '../services/usage.js';
 import { edition, email, features, id, limit } from './schemas.js';
 
 const search = z.object({ q: z.string().trim().max(200).optional(), limit });
 const days = z.number().int().min(1).max(3650);
+// `from` is inclusive and `to` exclusive. A bare date (2026-10-01) is midnight UTC.
+const instant = z.iso.datetime({ offset: true }).or(z.iso.date()).transform((v) => new Date(v)).optional();
+const acquisitionRange = z
+  .object({ from: instant, to: instant })
+  .refine((r) => !r.from || !r.to || r.from < r.to, { message: '`from` must be before `to`.', path: ['to'] });
 
 const planView = <T extends { _id: string; updatedAt?: Date }>({ _id, updatedAt, ...rest }: T) => ({ ...rest, updatedAt: updatedAt?.toISOString() ?? null });
 
@@ -61,6 +68,18 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
   app.get('/admin/referrals', { schema: { tags: ['admin'], querystring: z.object({ limit }) } }, async (req) => {
     await requireStaff(ctx, req);
     return referralStats(ctx, req.query.limit);
+  });
+
+  // Sign-ups per first-touch utm_source, with the companies (by e-mail domain) and activations they brought.
+  app.get('/admin/acquisition', { schema: { tags: ['admin'], querystring: acquisitionRange } }, async (req) => {
+    await requireStaff(ctx, req);
+    return acquisitionReport(ctx, { from: req.query.from, to: req.query.to });
+  });
+
+  // D1/D7/D30 retention of app installs (opt-in usage pings) by first week, and per utm_source where a key links them.
+  app.get('/admin/retention', { schema: { tags: ['admin'], querystring: acquisitionRange } }, async (req) => {
+    await requireStaff(ctx, req);
+    return retentionReport(ctx, { from: req.query.from, to: req.query.to });
   });
 
   app.get('/admin/users', { schema: { tags: ['admin'], querystring: search } }, async (req) => {
