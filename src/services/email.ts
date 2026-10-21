@@ -197,6 +197,25 @@ export const templates = {
       }),
     };
   },
+  seatRequest(
+    to: string,
+    opts: { teamName: string; teamId: string; by: string; seatLimit: number; seatsUsed: number; seats: number; note?: string; url: string },
+  ): Email {
+    return {
+      to,
+      subject: `${opts.teamName} asks for ${opts.seats} MotionQL seats`,
+      ...layout({
+        heading: `${opts.teamName} needs more seats`,
+        paragraphs: [
+          `${opts.by} asks to raise the seat limit of ${opts.teamName} from ${opts.seatLimit} to ${opts.seats}. They use ${opts.seatsUsed} seats now.`,
+          ...(opts.note ? [`Their note: ${opts.note}`] : []),
+          `Team id: ${opts.teamId}`,
+        ],
+        button: { label: 'Open the team in the staff console', url: opts.url },
+        footer: 'You get this because your address is in STAFF_EMAILS.',
+      }),
+    };
+  },
   seatRemoved(to: string, opts: { teamName: string }): Email {
     return {
       to,

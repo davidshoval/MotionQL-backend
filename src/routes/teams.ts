@@ -6,7 +6,7 @@ import { licenseView } from '../services/licenses.js';
 import {
   acceptInvite, addMembers, assignSeatTo, auditCsv, cancelInvite, createTeam, deleteTeam, findMember, freeSeatOf, inviteMembers, inviteView,
   licensesCsv, listAudit, listInvites, listMembers, listTeamLicenses, previewInvite, reassignSeat, reissueMemberKey, removeMember, renameTeam,
-  renewExpiring, renewMemberKey, resendInvite, sendMemberKey, teamAccess, teamView, transferOwnership, updateMember,
+  renewExpiring, renewMemberKey, requestSeats, resendInvite, sendMemberKey, teamAccess, teamView, transferOwnership, updateMember,
 } from '../services/teams.js';
 import type { MemberView } from '../services/teams.js';
 import { edition, email, features, id, token } from './schemas.js';
@@ -89,6 +89,14 @@ export const teamRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
     const members = (await listMembers(ctx, access.team._id)).filter((m) => ids.has(m.memberId));
     const team = await ctx.c.teams.findOne({ _id: access.team._id });
     return reply.code(201).send({ members, skipped: result.skipped, team: teamView(team ?? access.team) });
+  });
+
+  app.post('/teams/:teamId/seat-request', {
+    schema: { tags: ['teams'], params: teamParams, body: z.object({ seats: z.number().int().min(2).max(100_000), note: z.string().trim().max(1000).optional() }) },
+  }, async (req) => {
+    const user = await requireUser(ctx, req);
+    const access = await teamAccess(ctx, req.params.teamId, user, 'admin');
+    return { team: teamView(await requestSeats(ctx, access, actorOf(user), req.body.seats, req.body.note)) };
   });
 
   app.get('/teams/:teamId/licenses', { schema: { tags: ['teams'], params: teamParams } }, async (req) => {

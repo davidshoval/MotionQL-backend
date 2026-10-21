@@ -2,7 +2,7 @@ import { MongoClient } from 'mongodb';
 import { afterEach, beforeEach, describe, expect, inject, it } from 'vitest';
 import { collections, ensureIndexes } from '../src/db.js';
 import { verifyLicense } from '../src/licensing/licenseFormat.js';
-import { Client, makeApp, signUp, tokenFrom } from './helpers.js';
+import { Client, makeApp, makeStaff, signUp, tokenFrom } from './helpers.js';
 import type { TestApp } from './helpers.js';
 
 let t: TestApp;
@@ -210,6 +210,32 @@ describe('managing keys', () => {
     const both = await signUp(t, 'both@acme.com', 'Both');
     expect((await both.post('/invites/accept', { token })).json()).toMatchObject({ seatAssigned: false });
     expect((await both.get('/me')).json().teams).toHaveLength(1);
+  });
+});
+
+describe('asking for more seats', () => {
+  it('e-mails staff, shows the request on the team, and clears it once staff raise the limit', async () => {
+    await t.close();
+    t = await makeApp({ env: { STAFF_EMAILS: 'ops@motionql.com' } });
+    const { owner, teamId } = await teamWithOwner();
+    expect((await owner.post(`/teams/${teamId}/seat-request`, { seats: 10 })).json().error.code).toBe('validation_failed');
+    const res = await owner.post(`/teams/${teamId}/seat-request`, { seats: 60, note: 'New data team starts in May' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().team.seatRequest).toMatchObject({ seats: 60, note: 'New data team starts in May', by: 'it@acme.com' });
+    const mail = t.mailer.last('ops@motionql.com')!;
+    expect(mail.subject).toBe('Acme Corp asks for 60 MotionQL seats');
+    expect(mail.text).toContain(`/admin/teams?q=${teamId}`);
+
+    const dev = (await owner.post(`/teams/${teamId}/members`, { members: [{ email: 'dev@acme.com' }] })).json().members[0];
+    const devClient = await signUp(t, 'dev@acme.com');
+    expect((await devClient.post(`/teams/${teamId}/seat-request`, { seats: 99 })).statusCode).toBe(403);
+    expect(dev.hasSeat).toBe(true);
+
+    const staff = await makeStaff(t, 'ops@motionql.com');
+    const listed = (await staff.get('/admin/teams')).json().teams;
+    expect(listed[0]).toMatchObject({ id: teamId, seatRequest: { seats: 60 } });
+    expect((await staff.patch(`/admin/teams/${teamId}`, { seatLimit: 40 })).json().team.seatRequest).toMatchObject({ seats: 60 });
+    expect((await staff.patch(`/admin/teams/${teamId}`, { seatLimit: 60 })).json().team).toMatchObject({ seatLimit: 60, seatRequest: null });
   });
 });
 

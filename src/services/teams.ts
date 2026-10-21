@@ -41,6 +41,7 @@ export const teamView = (team: TeamDoc) => ({
   seatsUsed: team.seatsUsed,
   allowedEditions: team.allowedEditions,
   allowedFeatures: team.allowedFeatures,
+  seatRequest: team.seatRequest ? { seats: team.seatRequest.seats, note: team.seatRequest.note ?? null, by: team.seatRequest.by, at: team.seatRequest.at.toISOString() } : null,
   createdAt: team.createdAt.toISOString(),
 });
 
@@ -305,6 +306,34 @@ export async function deleteTeam(ctx: Ctx, access: TeamAccess, actor: Actor): Pr
   await ctx.c.invites.deleteMany({ teamId });
   await ctx.c.teams.deleteOne({ _id: teamId });
   await audit(ctx, actor, 'team.delete', { teamId, target: { type: 'team', id: teamId }, details: { name: access.team.name, revokedKeys: keys.length } });
+}
+
+/** Seats are free for now and staff set the limit: an admin asks for more, staff get an e-mail and raise it. */
+export async function requestSeats(ctx: Ctx, access: TeamAccess, actor: Actor, seats: number, note: string | undefined): Promise<TeamDoc> {
+  const team = access.team;
+  if (seats <= team.seatLimit) throw badRequest('validation_failed', `The team already has ${team.seatLimit} seats.`, { seats: `Ask for more than ${team.seatLimit}.` });
+  const request = { seats, ...(note?.trim() ? { note: note.trim() } : {}), by: actor.email, at: ctx.now() };
+  const updated = await ctx.c.teams.findOneAndUpdate({ _id: team._id }, { $set: { seatRequest: request, updatedAt: ctx.now() } }, { returnDocument: 'after' });
+  await audit(ctx, actor, 'team.seat.request', { teamId: team._id, target: { type: 'team', id: team._id }, details: { from: team.seatLimit, to: seats } });
+  const results = await Promise.allSettled(
+    ctx.config.staffEmails.map((to) =>
+      ctx.mailer.send(
+        templates.seatRequest(to, {
+          teamName: team.name,
+          teamId: team._id,
+          by: actor.email,
+          seatLimit: team.seatLimit,
+          seatsUsed: team.seatsUsed,
+          seats,
+          note: request.note,
+          url: `${ctx.config.webUrl}/admin/teams?q=${encodeURIComponent(team._id)}`,
+        }),
+      ),
+    ),
+  );
+  // The request is saved and shows on the staff page, so a failed e-mail does not fail it.
+  for (const r of results) if (r.status === 'rejected') ctx.log.error({ err: r.reason, teamId: team._id }, 'seat request e-mail failed');
+  return updated!;
 }
 
 // Adding people directly: the admin types e-mails, each person gets a seat and a key, no invitation to accept.

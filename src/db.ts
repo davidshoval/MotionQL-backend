@@ -71,6 +71,8 @@ export interface TeamDoc {
   /** Editions and extra features admins may give members (staff-set; billing will set them later). */
   allowedEditions: LicenseEdition[];
   allowedFeatures: string[];
+  /** An admin asked staff for more seats; cleared once the limit reaches what they asked for. */
+  seatRequest?: { seats: number; note?: string; by: string; at: Date };
   createdAt: Date;
   updatedAt: Date;
 }

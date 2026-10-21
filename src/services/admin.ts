@@ -1,5 +1,5 @@
 import type { Actor, Ctx } from '../context.js';
-import type { LicenseDoc } from '../db.js';
+import type { LicenseDoc, TeamDoc } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import type { LicenseEdition } from '../licensing/types.js';
 import { userView } from './accounts.js';
@@ -50,7 +50,16 @@ export async function setStaff(ctx: Ctx, actor: Actor, userId: string, isStaff: 
 
 export async function searchTeams(ctx: Ctx, q: string | undefined, limit: number) {
   const filter = q ? { $or: [{ name: { $regex: escapeRegex(q), $options: 'i' } }, { _id: q }] } : {};
-  const teams = await ctx.c.teams.find(filter).sort({ createdAt: -1 }).limit(limit).toArray();
+  // Teams waiting for more seats first.
+  const teams = await ctx.c.teams
+    .aggregate<TeamDoc>([
+      { $match: filter },
+      { $addFields: { _pending: { $cond: [{ $ifNull: ['$seatRequest', false] }, 1, 0] } } },
+      { $sort: { _pending: -1, createdAt: -1 } },
+      { $limit: limit },
+      { $project: { _pending: 0 } },
+    ])
+    .toArray();
   return teams.map(teamView);
 }
 
@@ -65,7 +74,13 @@ export async function updateTeamLimits(
   if (patch.seatLimit !== undefined && patch.seatLimit < team.seatsUsed) {
     throw conflict('seat_limit_below_used', `The team uses ${team.seatsUsed} seats; free some before lowering the limit.`);
   }
-  const updated = await ctx.c.teams.findOneAndUpdate({ _id: teamId }, { $set: { ...patch, updatedAt: ctx.now() } }, { returnDocument: 'after' });
+  // Raising the limit to what the team asked for answers its request.
+  const answered = patch.seatLimit !== undefined && team.seatRequest && patch.seatLimit >= team.seatRequest.seats;
+  const updated = await ctx.c.teams.findOneAndUpdate(
+    { _id: teamId },
+    { $set: { ...patch, updatedAt: ctx.now() }, ...(answered ? { $unset: { seatRequest: '' } } : {}) },
+    { returnDocument: 'after' },
+  );
   await audit(ctx, actor, 'staff.team.update', { teamId, target: { type: 'team', id: teamId }, details: patch });
   return teamView(updated!);
 }

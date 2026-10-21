@@ -118,6 +118,7 @@ the account id (`usr_…`) is accepted too, for older clients.
 | `POST /teams/:teamId/members/:memberId/renew` | admin | | `201 {license}`; a full plan term from today, old key revoked, e-mailed |
 | `POST /teams/:teamId/members/:memberId/send-key` | admin | | `204`; e-mails the current key again |
 | `POST /teams/:teamId/members/:memberId/reassign` | admin | `email, name?, sendEmail (true)` | `201 {member}`; the seat moves: the old holder's key is revoked, the new person (added if new) gets a key |
+| `POST /teams/:teamId/seat-request` | admin | `seats` (the new total), `note?` | `{team}`; e-mails every `STAFF_EMAILS` address and shows on `GET /admin/teams` (pending first) until staff raise the limit that far |
 | `GET /teams/:teamId/licenses` | admin | | `{licenses}`: every key the team issued, newest first, with `status`, `current`, `assignee`, `revokeReason`; `key` only while active |
 | `GET /teams/:teamId/licenses.csv` | admin | | CSV of each member's current key, with the key, for deployment |
 | `POST /teams/:teamId/licenses/renew-expiring` | admin | `withinDays (30), sendEmail (true)` | `{renewed}`; renews every seated key ending within that many days |
@@ -130,7 +131,7 @@ the account id (`usr_…`) is accepted too, for older clients.
 | `POST /invites/preview` | anyone | `token` | `{teamName, email, role, invitedBy, assignSeat}` |
 | `POST /invites/accept` | signed in, invited e-mail | `token` | `{team, seatAssigned}`; joins without a seat when the team is full |
 
-`team` = `{id, name, seatLimit, seatsUsed, allowedEditions, allowedFeatures, createdAt}`.
+`team` = `{id, name, seatLimit, seatsUsed, allowedEditions, allowedFeatures, seatRequest: {seats, note, by, at} | null, createdAt}`.
 `member` = `{memberId, userId?, hasAccount, email, name, role, hasSeat, edition, features, joinedAt, addedBy?, license?: {licenseId, key, edition, features, issuedAt, expiresAt, status}, usage?: {lastSeen, appVersion, platform, installs}}`; `userId` is missing until the person has a confirmed account.
 `usage` comes from the app's opt-in usage ping, matched by license hash.
 
