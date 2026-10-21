@@ -16,7 +16,10 @@ const teamParams = z.object({ teamId: id });
 // :memberId is a member id (mem_…) or, as older clients send, the member's account id.
 const memberParams = z.object({ teamId: id, memberId: id });
 const optionalName = z.string().trim().max(100).optional();
-const person = z.object({ email, name: optionalName });
+// A name, an e-mail or both: someone added by name only gets a key the admin hands over.
+const person = z
+  .object({ email: z.union([email, z.literal('').transform(() => undefined)]).optional(), name: optionalName })
+  .refine((p) => p.email || p.name, { message: 'Enter a name or an e-mail.', path: ['name'] });
 const inviteParams = z.object({ teamId: id, inviteId: id });
 
 const rosterOnly = ({ usage: _usage, license, addedBy: _addedBy, ...m }: MemberView) => ({
@@ -125,12 +128,23 @@ export const teamRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
   });
 
   app.patch('/teams/:teamId/members/:memberId', {
-    schema: { tags: ['teams'], params: memberParams, body: z.object({ role: z.enum(['admin', 'member']).optional(), edition: edition.optional(), features: features.optional() }) },
+    schema: {
+      tags: ['teams'],
+      params: memberParams,
+      body: z.object({
+        role: z.enum(['admin', 'member']).optional(),
+        edition: edition.optional(),
+        features: features.optional(),
+        // For someone without an account: '' or null clears the e-mail.
+        name: z.string().trim().max(100).optional(),
+        email: z.union([email, z.literal(''), z.null()]).optional(),
+      }),
+    },
   }, async (req) => {
     const user = await requireUser(ctx, req);
     const access = await teamAccess(ctx, req.params.teamId, user, 'admin');
     const m = await updateMember(ctx, access, actorOf(user), req.params.memberId, req.body);
-    return { member: { memberId: m._id, userId: m.userId ?? null, email: m.email, role: m.role, hasSeat: m.hasSeat, edition: m.edition, features: m.features } };
+    return { member: { memberId: m._id, userId: m.userId ?? null, email: m.email ?? null, name: m.name ?? null, role: m.role, hasSeat: m.hasSeat, edition: m.edition, features: m.features } };
   });
 
   // Admins remove anyone but the owner; any member can remove themselves (leave).
@@ -178,7 +192,7 @@ export const teamRoutes = (ctx: Ctx): FastifyPluginAsyncZod => async (app) => {
   });
 
   app.post('/teams/:teamId/members/:memberId/reassign', {
-    schema: { tags: ['teams'], params: memberParams, body: person.extend({ sendEmail: z.boolean().default(true) }) },
+    schema: { tags: ['teams'], params: memberParams, body: z.object({ email: z.union([email, z.literal('').transform(() => undefined)]).optional(), name: optionalName, sendEmail: z.boolean().default(true) }).refine((p) => p.email || p.name, { message: 'Enter a name or an e-mail.', path: ['name'] }) },
   }, async (req, reply) => {
     const user = await requireUser(ctx, req);
     const access = await teamAccess(ctx, req.params.teamId, user, 'admin');

@@ -17,7 +17,7 @@ interface MemberRow {
   memberId: string;
   userId?: string;
   hasAccount: boolean;
-  email: string;
+  email?: string;
   name: string;
   role: string;
   hasSeat: boolean;
@@ -120,6 +120,70 @@ describe('adding people directly (no invitation)', () => {
     expect(roster).toHaveLength(3);
     expect(roster.every((m) => m.license && !m.license.key)).toBe(true);
     expect((await mo.get(`/teams/${teamId}/licenses`)).statusCode).toBe(403);
+  });
+});
+
+describe('people without an e-mail', () => {
+  it('adds someone by name only: the key carries the admin e-mail and nothing is mailed', async () => {
+    const { owner, teamId } = await teamWithOwner();
+    const sent = t.mailer.sent.length;
+    const res = await owner.post(`/teams/${teamId}/members`, { members: [{ name: 'Lab PC 3' }, { name: 'Lab PC 3', email: '' }] });
+    expect(res.statusCode).toBe(201);
+    const [a, b] = res.json().members as MemberRow[];
+    expect(a).toMatchObject({ name: 'Lab PC 3', hasAccount: false, hasSeat: true });
+    expect(a.email).toBeUndefined();
+    expect(b.memberId).not.toBe(a.memberId);
+    expect(verifyLicense(a.license!.key!, t.ctx.config.publicKeyBase64)).toMatchObject({ ok: true, payload: { email: 'it@acme.com', customer: 'Acme Corp' } });
+    expect(t.mailer.sent.length).toBe(sent);
+    expect((await owner.post(`/teams/${teamId}/members/${a.memberId}/send-key`)).json().error.code).toBe('no_email');
+    // Neither a name nor an e-mail is refused.
+    expect((await owner.post(`/teams/${teamId}/members`, { members: [{ email: '' }] })).statusCode).toBe(400);
+
+    // The inventory names the person, not the admin whose e-mail is in the key, and the admin's own key stays theirs.
+    const licenses = (await owner.get(`/teams/${teamId}/licenses`)).json().licenses as { assignee: { memberId?: string; name: string; email: string } }[];
+    expect(licenses.filter((l) => l.assignee.memberId === a.memberId)).toHaveLength(1);
+    expect(licenses.find((l) => l.assignee.memberId === a.memberId)!.assignee.name).toBe('Lab PC 3');
+    expect(licenses.filter((l) => l.assignee.name === 'Ivy IT')).toHaveLength(1);
+    expect((await owner.get('/me/licenses')).json().licenses.filter((l: { source: string }) => l.source === 'team')).toHaveLength(1);
+
+    // Freeing the seat revokes the key without mailing anyone.
+    expect((await owner.del(`/teams/${teamId}/seats/${b.memberId}`)).statusCode).toBe(204);
+    expect(t.mailer.sent.length).toBe(sent);
+  });
+
+  it('an e-mail added later goes into a new key, is mailed, and links the account once confirmed', async () => {
+    const { owner, teamId } = await teamWithOwner();
+    const added = (await owner.post(`/teams/${teamId}/members`, { members: [{ name: 'Rae' }] })).json().members[0] as MemberRow;
+    const res = await owner.patch(`/teams/${teamId}/members/${added.memberId}`, { email: 'Rae@acme.com' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().member).toMatchObject({ email: 'rae@acme.com', name: 'Rae' });
+    const row = (await members(owner, teamId)).find((m) => m.memberId === added.memberId)!;
+    expect(row.license!.licenseId).not.toBe(added.license!.licenseId);
+    expect(row.license!.expiresAt).toBe(added.license!.expiresAt);
+    expect(verifyLicense(row.license!.key!, t.ctx.config.publicKeyBase64)).toMatchObject({ ok: true, payload: { email: 'rae@acme.com' } });
+    expect(t.mailer.last('rae@acme.com')!.text).toContain(row.license!.key!);
+
+    const rae = await signUp(t, 'rae@acme.com', 'Rae Ray');
+    expect((await rae.get('/me')).json().teams[0]).toMatchObject({ id: teamId, hasSeat: true });
+    // The owner (whose e-mail was in Rae's first key) did not get Rae's keys.
+    expect((await owner.get('/me/licenses')).json().licenses.filter((l: { source: string }) => l.source === 'team')).toHaveLength(1);
+    // An account's e-mail is not the admin's to change; another member's e-mail is refused.
+    expect((await owner.patch(`/teams/${teamId}/members/${added.memberId}`, { email: 'other@acme.com' })).json().error.code).toBe('has_account');
+    const other = (await owner.post(`/teams/${teamId}/members`, { members: [{ name: 'Oz' }] })).json().members[0] as MemberRow;
+    expect((await owner.patch(`/teams/${teamId}/members/${other.memberId}`, { email: 'rae@acme.com' })).statusCode).toBe(409);
+    // Clearing the e-mail needs a name to remain.
+    const pat = (await owner.post(`/teams/${teamId}/members`, { members: [{ email: 'pat@acme.com' }] })).json().members[0] as MemberRow;
+    expect((await owner.patch(`/teams/${teamId}/members/${pat.memberId}`, { email: null })).statusCode).toBe(400);
+    const cleared = await owner.patch(`/teams/${teamId}/members/${pat.memberId}`, { email: null, name: 'Pat' });
+    expect(cleared.json().member).toMatchObject({ email: null, name: 'Pat' });
+  });
+
+  it('reassigns a seat to someone given by name only', async () => {
+    const { owner, teamId } = await teamWithOwner();
+    const dev = (await owner.post(`/teams/${teamId}/members`, { members: [{ email: 'dev@acme.com' }] })).json().members[0] as MemberRow;
+    const res = await owner.post(`/teams/${teamId}/members/${dev.memberId}/reassign`, { name: 'Contractor' });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().member).toMatchObject({ name: 'Contractor', hasSeat: true });
   });
 });
 

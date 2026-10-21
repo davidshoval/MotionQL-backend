@@ -109,15 +109,15 @@ the account id (`usr_…`) is accepted too, for older clients.
 | `DELETE /teams/:teamId` | owner | | `204`; every team key is revoked |
 | `POST /teams/:teamId/transfer-ownership` | owner | `memberId` (or `userId`) | `204`; the old owner becomes admin; `400 no_account` when the member has no account |
 | `GET /teams/:teamId/members` | member | | `{members: [member]}`; `license.key`, `usage` and `addedBy` only for admins |
-| `POST /teams/:teamId/members` | admin | `members: [{email, name?}] (1..200), role (member; admin is owner only), assignSeat (true), sendEmail (true)` | `201 {members, skipped: [{email, reason}], team}`; adds people directly, no invitation: each gets a seat and a key at once (e-mailed unless `sendEmail` is false). `409 seat_limit_reached` before anyone is added when there are not enough free seats |
-| `PATCH /teams/:teamId/members/:memberId` | admin | `role? (admin\|member, owner only), edition?, features?` | `{member}`; a seated member gets a new key |
+| `POST /teams/:teamId/members` | admin | `members: [{email?, name?}] (1..200, each with a name or an e-mail), role (member; admin is owner only), assignSeat (true), sendEmail (true)` | `201 {members, skipped: [{email, reason}], team}`; adds people directly, no invitation: each gets a seat and a key at once (e-mailed unless `sendEmail` is false). `409 seat_limit_reached` before anyone is added when there are not enough free seats. Someone added by name only gets a key carrying the adding admin's e-mail (the app needs one) and nothing is mailed; the admin hands the key over |
+| `PATCH /teams/:teamId/members/:memberId` | admin | `role? (admin\|member, owner only), edition?, features?, name?, email? (null or "" clears it)` | `{member}`; a seated member gets a new key when the plan or e-mail changes (same end date, e-mailed to the new address). `email` only for someone without an account (`400 has_account`); a confirmed account with that e-mail is linked |
 | `DELETE /teams/:teamId/members/:memberId` | admin, or self to leave | | `204`; frees the seat and revokes the key |
 | `POST /teams/:teamId/seats/:memberId` | admin | | `201 {license}`; e-mails the key |
 | `DELETE /teams/:teamId/seats/:memberId` | admin | | `204`; revokes the key |
 | `POST /teams/:teamId/members/:memberId/reissue` | admin | | `201 {license}`; same end date, old key revoked (lost or leaked key) |
 | `POST /teams/:teamId/members/:memberId/renew` | admin | | `201 {license}`; a full plan term from today, old key revoked, e-mailed |
-| `POST /teams/:teamId/members/:memberId/send-key` | admin | | `204`; e-mails the current key again |
-| `POST /teams/:teamId/members/:memberId/reassign` | admin | `email, name?, sendEmail (true)` | `201 {member}`; the seat moves: the old holder's key is revoked, the new person (added if new) gets a key |
+| `POST /teams/:teamId/members/:memberId/send-key` | admin | | `204`; e-mails the current key again. `400 no_email` for someone added by name only |
+| `POST /teams/:teamId/members/:memberId/reassign` | admin | `email?, name?` (one of them)`, sendEmail (true)` | `201 {member}`; the seat moves: the old holder's key is revoked, the new person (added if new) gets a key |
 | `POST /teams/:teamId/seat-request` | admin | `seats` (the new total), `note?` | `{team}`; e-mails every `STAFF_EMAILS` address and shows on `GET /admin/teams` (pending first) until staff raise the limit that far |
 | `GET /teams/:teamId/licenses` | admin | | `{licenses}`: every key the team issued, newest first, with `status`, `current`, `assignee`, `revokeReason`; `key` only while active |
 | `GET /teams/:teamId/licenses.csv` | admin | | CSV of each member's current key, with the key, for deployment |
