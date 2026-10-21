@@ -133,6 +133,8 @@ describe('managing keys', () => {
   it('renews a key for a full term from today, and renews every key close to expiry in one go', async () => {
     const { owner, teamId, dev } = await teamWithDev();
     t.clock.advanceDays(340);
+    // Sessions last 30 days: sign in again.
+    expect((await owner.post('/auth/login', { email: 'it@acme.com', password: 'correct horse battery' })).statusCode).toBe(200);
     const renewed = await owner.post(`/teams/${teamId}/members/${dev.memberId}/renew`);
     expect(renewed.statusCode).toBe(201);
     expect(renewed.json().license.expiresAt.slice(0, 10)).toBe('2028-09-05');
