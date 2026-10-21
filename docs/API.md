@@ -95,19 +95,32 @@ release's `SHA256SUMS.txt`.
 
 Every member of a team can read it; admins and the owner manage it. Staff can act on any team.
 
+Admins manage licenses centrally, the way an IT department does: they add people by e-mail and each one gets a seat and
+a key straight away, with no invitation to accept and no account needed (the key is e-mailed, and the admin can copy it
+or export all keys as CSV). When that person later confirms a MotionQL account with the same e-mail, the membership and
+its keys link to the account. Invitations still work for teams that prefer them. `:memberId` is the member's `mem_…` id;
+the account id (`usr_…`) is accepted too, for older clients.
+
 | Method and path | Who | Body | Result |
 |---|---|---|---|
 | `POST /teams` | signed in | `name` | `201 {team}`; the caller is owner and takes a seat |
 | `GET /teams/:teamId` | member | | `{team, role}` |
 | `PATCH /teams/:teamId` | admin | `name` | `{team}` |
 | `DELETE /teams/:teamId` | owner | | `204`; every team key is revoked |
-| `POST /teams/:teamId/transfer-ownership` | owner | `userId` | `204`; the old owner becomes admin |
-| `GET /teams/:teamId/members` | member | | `{members: [member]}` (`usage` only for admins) |
-| `PATCH /teams/:teamId/members/:userId` | admin | `role? (admin\|member, owner only), edition?, features?` | `{member}`; a seated member gets a new key |
-| `DELETE /teams/:teamId/members/:userId` | admin, or self to leave | | `204`; frees the seat and revokes the key |
-| `POST /teams/:teamId/seats/:userId` | admin | | `201 {license}`; e-mails the key |
-| `DELETE /teams/:teamId/seats/:userId` | admin | | `204`; revokes the key |
-| `POST /teams/:teamId/members/:userId/reissue` | admin | | `201 {license}`; old key revoked |
+| `POST /teams/:teamId/transfer-ownership` | owner | `memberId` (or `userId`) | `204`; the old owner becomes admin; `400 no_account` when the member has no account |
+| `GET /teams/:teamId/members` | member | | `{members: [member]}`; `license.key`, `usage` and `addedBy` only for admins |
+| `POST /teams/:teamId/members` | admin | `members: [{email, name?}] (1..200), role (member; admin is owner only), assignSeat (true), sendEmail (true)` | `201 {members, skipped: [{email, reason}], team}`; adds people directly, no invitation: each gets a seat and a key at once (e-mailed unless `sendEmail` is false). `409 seat_limit_reached` before anyone is added when there are not enough free seats |
+| `PATCH /teams/:teamId/members/:memberId` | admin | `role? (admin\|member, owner only), edition?, features?` | `{member}`; a seated member gets a new key |
+| `DELETE /teams/:teamId/members/:memberId` | admin, or self to leave | | `204`; frees the seat and revokes the key |
+| `POST /teams/:teamId/seats/:memberId` | admin | | `201 {license}`; e-mails the key |
+| `DELETE /teams/:teamId/seats/:memberId` | admin | | `204`; revokes the key |
+| `POST /teams/:teamId/members/:memberId/reissue` | admin | | `201 {license}`; same end date, old key revoked (lost or leaked key) |
+| `POST /teams/:teamId/members/:memberId/renew` | admin | | `201 {license}`; a full plan term from today, old key revoked, e-mailed |
+| `POST /teams/:teamId/members/:memberId/send-key` | admin | | `204`; e-mails the current key again |
+| `POST /teams/:teamId/members/:memberId/reassign` | admin | `email, name?, sendEmail (true)` | `201 {member}`; the seat moves: the old holder's key is revoked, the new person (added if new) gets a key |
+| `GET /teams/:teamId/licenses` | admin | | `{licenses}`: every key the team issued, newest first, with `status`, `current`, `assignee`, `revokeReason`; `key` only while active |
+| `GET /teams/:teamId/licenses.csv` | admin | | CSV of each member's current key, with the key, for deployment |
+| `POST /teams/:teamId/licenses/renew-expiring` | admin | `withinDays (30), sendEmail (true)` | `{renewed}`; renews every seated key ending within that many days |
 | `POST /teams/:teamId/invites` | admin | `emails[1..100], role (member), assignSeat (true)` | `201 {invites, skipped: [{email, reason}]}`; link to `WEB_URL/invite?token=…` (14 days) |
 | `GET /teams/:teamId/invites` | admin | | `{invites}` |
 | `POST /teams/:teamId/invites/:inviteId/resend` | admin | | `204` |
@@ -118,7 +131,7 @@ Every member of a team can read it; admins and the owner manage it. Staff can ac
 | `POST /invites/accept` | signed in, invited e-mail | `token` | `{team, seatAssigned}`; joins without a seat when the team is full |
 
 `team` = `{id, name, seatLimit, seatsUsed, allowedEditions, allowedFeatures, createdAt}`.
-`member` = `{userId, email, name, role, hasSeat, edition, features, joinedAt, license?: {licenseId, edition, features, issuedAt, expiresAt, status}, usage?: {lastSeen, appVersion, platform, installs}}`.
+`member` = `{memberId, userId?, hasAccount, email, name, role, hasSeat, edition, features, joinedAt, addedBy?, license?: {licenseId, key, edition, features, issuedAt, expiresAt, status}, usage?: {lastSeen, appVersion, platform, installs}}`; `userId` is missing until the person has a confirmed account.
 `usage` comes from the app's opt-in usage ping, matched by license hash.
 
 ## Staff console

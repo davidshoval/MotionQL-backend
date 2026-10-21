@@ -135,7 +135,11 @@ export const templates = {
       }),
     };
   },
-  licenseKey(to: string, opts: { name: string; key: string; edition: string; expiresAt: string; accountUrl: string; teamName?: string }): Email {
+  /** `signUpUrl` and `downloadUrl` when the person has no account yet (a team admin added them by e-mail). */
+  licenseKey(
+    to: string,
+    opts: { name: string; key: string; edition: string; expiresAt: string; accountUrl: string; teamName?: string; signUpUrl?: string; downloadUrl?: string },
+  ): Email {
     const edition = opts.edition === 'pro' ? 'Pro' : opts.edition === 'enterprise' ? 'Enterprise' : 'Trial';
     return {
       to,
@@ -145,9 +149,15 @@ export const templates = {
         paragraphs: [
           `Hi ${opts.name}, here is your personal license key. It is valid until ${opts.expiresAt.slice(0, 10)}.`,
           'In MotionQL, open Settings → License, paste the key and click Activate. No internet connection is needed to activate.',
+          ...(opts.downloadUrl
+            ? [
+                `No account is needed. To keep your key in one place, create a free MotionQL account with this e-mail address: ${opts.signUpUrl}`,
+                `Your ${opts.teamName ?? 'team'} admin manages this key and can send it to you again.`,
+              ]
+            : []),
         ],
         code: opts.key,
-        button: { label: 'Open your account', url: opts.accountUrl },
+        button: opts.downloadUrl ? { label: 'Download MotionQL', url: opts.downloadUrl } : { label: 'Open your account', url: opts.accountUrl },
         footer: 'Keep this key private: it is tied to your e-mail address.',
       }),
     };

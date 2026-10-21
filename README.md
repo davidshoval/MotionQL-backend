@@ -14,8 +14,9 @@ This service holds the private key and signs one key per person:
 - **Free plan.** When a user confirms their e-mail they get a key, e-mailed and shown on `/account`. Today that is a
   1-year Pro key for everyone. Whether it is free, how long it lasts and which edition it gives are staff settings
   (`PUT /admin/plans/free`), so charging later needs no code change. Changes apply to keys issued afterwards.
-- **Teams.** A team has a seat limit (free for now; staff raise it). Admins invite people; a seat issues that person
-  their own key with the team as customer. Removing someone frees the seat and revokes their key.
+- **Teams.** A team has a seat limit (free for now; staff raise it). Admins add people by e-mail (or invite them); a
+  seat issues that person their own key with the team as customer, e-mailed and visible to the admin, no account
+  needed. Admins renew, reissue, re-send and reassign keys. Removing someone frees the seat and revokes their key.
 - **Revocation.** Revoked keys are listed by hash in the signed manifest the app fetches every 4 hours
   (`includeRevocations`, on by default; every released app reads it).
 
