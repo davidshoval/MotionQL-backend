@@ -71,6 +71,8 @@ export interface TeamDoc {
   /** Editions and extra features admins may give members (staff-set; billing will set them later). */
   allowedEditions: LicenseEdition[];
   allowedFeatures: string[];
+  /** An admin asked staff for more seats; cleared once the limit reaches what they asked for. */
+  seatRequest?: { seats: number; note?: string; by: string; at: Date };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,7 +80,15 @@ export interface TeamDoc {
 export interface TeamMemberDoc {
   _id: string;
   teamId: string;
-  userId: string;
+  /**
+   * The member's MotionQL account. Unset for someone an admin added by e-mail who has no verified account yet: they
+   * use the key they were sent, and the membership links to their account once they confirm that e-mail.
+   */
+  userId?: string;
+  /** Lower-cased; unique per team. */
+  email: string;
+  /** The name the admin typed when adding them; the account's own name wins once linked. */
+  name?: string;
   role: TeamRole;
   hasSeat: boolean;
   /** The member's current team key while they hold a seat. */
@@ -86,6 +96,8 @@ export interface TeamMemberDoc {
   edition: LicenseEdition;
   features: string[];
   joinedAt: Date;
+  /** E-mail of the admin who added them directly (unset when they joined through an invite or created the team). */
+  addedBy?: string;
 }
 
 export interface InviteDoc {
@@ -276,7 +288,22 @@ export function collections(db: Db): Collections {
   };
 }
 
+/**
+ * Members used to need an account: every row had a userId and no e-mail, under a plain unique (teamId, userId) index.
+ * Copies each member's e-mail (and name) from their account, then swaps that index for one that ignores rows without
+ * an account, so admins can add people by e-mail. Safe to run on every start.
+ */
+async function migrateTeamMembers(c: Collections): Promise<void> {
+  for await (const m of c.teamMembers.find({ email: { $exists: false } }, { projection: { _id: 1, userId: 1 } })) {
+    const user = m.userId ? await c.users.findOne({ _id: m.userId }, { projection: { email: 1, name: 1 } }) : null;
+    if (user) await c.teamMembers.updateOne({ _id: m._id }, { $set: { email: user.email, name: user.name } });
+  }
+  const old = (await c.teamMembers.indexes().catch(() => [])).find((i) => i.name === 'teamId_1_userId_1');
+  if (old) await c.teamMembers.dropIndex('teamId_1_userId_1');
+}
+
 export async function ensureIndexes(c: Collections): Promise<void> {
+  await migrateTeamMembers(c);
   await Promise.all([
     c.users.createIndex({ email: 1 }, { unique: true }),
     c.users.createIndex({ referralCode: 1 }, { unique: true, partialFilterExpression: { referralCode: { $type: 'string' } } }),
@@ -286,8 +313,13 @@ export async function ensureIndexes(c: Collections): Promise<void> {
     c.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     c.emailTokens.createIndex({ userId: 1, purpose: 1 }),
     c.emailTokens.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-    c.teamMembers.createIndex({ teamId: 1, userId: 1 }, { unique: true }),
+    c.teamMembers.createIndex(
+      { teamId: 1, userId: 1 },
+      { name: 'teamId_1_userId_1_linked', unique: true, partialFilterExpression: { userId: { $type: 'string' } } },
+    ),
+    c.teamMembers.createIndex({ teamId: 1, email: 1 }, { unique: true, partialFilterExpression: { email: { $type: 'string' } } }),
     c.teamMembers.createIndex({ userId: 1 }),
+    c.teamMembers.createIndex({ email: 1 }),
     c.invites.createIndex({ tokenHash: 1 }, { unique: true }),
     c.invites.createIndex({ teamId: 1, email: 1 }, { unique: true }),
     c.invites.createIndex({ email: 1 }),

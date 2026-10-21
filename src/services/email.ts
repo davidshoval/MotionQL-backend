@@ -135,7 +135,11 @@ export const templates = {
       }),
     };
   },
-  licenseKey(to: string, opts: { name: string; key: string; edition: string; expiresAt: string; accountUrl: string; teamName?: string }): Email {
+  /** `signUpUrl` and `downloadUrl` when the person has no account yet (a team admin added them by e-mail). */
+  licenseKey(
+    to: string,
+    opts: { name: string; key: string; edition: string; expiresAt: string; accountUrl: string; teamName?: string; signUpUrl?: string; downloadUrl?: string },
+  ): Email {
     const edition = opts.edition === 'pro' ? 'Pro' : opts.edition === 'enterprise' ? 'Enterprise' : 'Trial';
     return {
       to,
@@ -145,9 +149,15 @@ export const templates = {
         paragraphs: [
           `Hi ${opts.name}, here is your personal license key. It is valid until ${opts.expiresAt.slice(0, 10)}.`,
           'In MotionQL, open Settings → License, paste the key and click Activate. No internet connection is needed to activate.',
+          ...(opts.downloadUrl
+            ? [
+                `No account is needed. To keep your key in one place, create a free MotionQL account with this e-mail address: ${opts.signUpUrl}`,
+                `Your ${opts.teamName ?? 'team'} admin manages this key and can send it to you again.`,
+              ]
+            : []),
         ],
         code: opts.key,
-        button: { label: 'Open your account', url: opts.accountUrl },
+        button: opts.downloadUrl ? { label: 'Download MotionQL', url: opts.downloadUrl } : { label: 'Open your account', url: opts.accountUrl },
         footer: 'Keep this key private: it is tied to your e-mail address.',
       }),
     };
@@ -184,6 +194,25 @@ export const templates = {
           'The invitation is valid for 14 days.',
         ],
         button: { label: 'Accept invitation', url: opts.url },
+      }),
+    };
+  },
+  seatRequest(
+    to: string,
+    opts: { teamName: string; teamId: string; by: string; seatLimit: number; seatsUsed: number; seats: number; note?: string; url: string },
+  ): Email {
+    return {
+      to,
+      subject: `${opts.teamName} asks for ${opts.seats} MotionQL seats`,
+      ...layout({
+        heading: `${opts.teamName} needs more seats`,
+        paragraphs: [
+          `${opts.by} asks to raise the seat limit of ${opts.teamName} from ${opts.seatLimit} to ${opts.seats}. They use ${opts.seatsUsed} seats now.`,
+          ...(opts.note ? [`Their note: ${opts.note}`] : []),
+          `Team id: ${opts.teamId}`,
+        ],
+        button: { label: 'Open the team in the staff console', url: opts.url },
+        footer: 'You get this because your address is in STAFF_EMAILS.',
       }),
     };
   },

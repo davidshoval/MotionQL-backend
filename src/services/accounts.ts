@@ -10,6 +10,7 @@ import { audit } from './audit.js';
 import { templates } from './email.js';
 import { grantFreeLicense } from './licenses.js';
 import { newReferralCode, referrerForCode, rewardReferral } from './referrals.js';
+import { linkMemberships } from './teams.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const TOKEN_TTL_MS: Record<EmailTokenPurpose, number> = { 'verify-email': 24 * HOUR_MS, 'password-reset': HOUR_MS };
@@ -163,6 +164,8 @@ export async function verifyEmail(ctx: Ctx, token: string): Promise<UserDoc> {
   if (!user) throw badRequest('invalid_token', 'This link is invalid or has expired.');
   user = await applyStaffList(ctx, user);
   await audit(ctx, { id: user._id, email: user.email }, 'user.verify_email', { target: { type: 'user', id: user._id, email: user.email } });
+  // Seats an admin gave this e-mail before the account existed.
+  await linkMemberships(ctx, user);
   // Before the free key, so the invited user's own reward goes into that first key.
   await rewardReferral(ctx, user);
   const license = await grantFreeLicense(ctx, user);
@@ -207,6 +210,7 @@ export async function resetPassword(ctx: Ctx, token: string, password: string): 
   );
   if (!user) throw badRequest('invalid_token', 'This link is invalid or has expired.');
   await ctx.c.sessions.deleteMany({ userId });
+  await linkMemberships(ctx, user);
   await audit(ctx, { id: user._id, email: user.email }, 'user.password_reset', { target: { type: 'user', id: user._id, email: user.email } });
   return user;
 }
