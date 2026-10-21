@@ -17,6 +17,9 @@ const ROLE_RANK: Record<TeamRole, number> = { member: 0, admin: 1, owner: 2 };
 
 const actorOf = (user: UserDoc): Actor => ({ id: user._id, email: user.email, isStaff: user.isStaff });
 
+/** How a member is named in messages: their e-mail, or their name when the admin added them without one. */
+const label = (m: Pick<TeamMemberDoc, 'email' | 'name'>) => m.email ?? m.name ?? 'This member';
+
 export interface TeamAccess {
   team: TeamDoc;
   /** Undefined when staff look at a team they are not in. */
@@ -93,6 +96,7 @@ const startingEdition = (team: TeamDoc, planEdition: LicenseEdition) => (team.al
 
 /** E-mails a member their current team key. Someone without an account is told how to use it without one. */
 async function sendKey(ctx: Ctx, member: TeamMemberDoc, team: TeamDoc, license: LicenseDoc): Promise<void> {
+  if (!member.email) return;
   const user = member.userId ? await ctx.c.users.findOne({ _id: member.userId }, { projection: { name: 1 } }) : null;
   await ctx.mailer.send(
     templates.licenseKey(member.email, {
@@ -107,10 +111,16 @@ async function sendKey(ctx: Ctx, member: TeamMemberDoc, team: TeamDoc, license: 
   );
 }
 
+/**
+ * The e-mail signed into a member's key. The app needs one, so someone added without an e-mail gets the admin's: the
+ * app shows it as the contact for the license.
+ */
+const keyEmail = (member: TeamMemberDoc, actor: Pick<Actor, 'email'>) => member.email ?? member.addedBy ?? actor.email;
+
 /** Takes one seat (atomically, never past the limit) and issues the member's personal team key. */
 export async function assignSeat(ctx: Ctx, team: TeamDoc, member: TeamMemberDoc, actor: Actor, opts: { notify?: boolean } = {}): Promise<LicenseDoc> {
   const claimed = await ctx.c.teamMembers.updateOne({ _id: member._id, hasSeat: false }, { $set: { hasSeat: true } });
-  if (!claimed.modifiedCount) throw conflict('already_has_seat', `${member.email} already has a seat.`);
+  if (!claimed.modifiedCount) throw conflict('already_has_seat', `${label(member)} already has a seat.`);
   const taken = await ctx.c.teams.updateOne(
     { _id: team._id, $expr: { $lt: ['$seatsUsed', '$seatLimit'] } },
     { $inc: { seatsUsed: 1 }, $set: { updatedAt: ctx.now() } },
@@ -123,17 +133,18 @@ export async function assignSeat(ctx: Ctx, team: TeamDoc, member: TeamMemberDoc,
     const plan = await getTeamPlan(ctx);
     const license = await issueLicense(ctx, {
       source: 'team',
-      email: member.email,
+      email: keyEmail(member, actor),
       customer: team.name,
       edition: member.edition,
       features: member.features,
       durationDays: plan.durationDays,
       userId: member.userId,
       teamId: team._id,
+      memberId: member._id,
       actor,
     });
     await ctx.c.teamMembers.updateOne({ _id: member._id }, { $set: { licenseId: license._id } });
-    await audit(ctx, actor, 'team.seat.assign', { teamId: team._id, target: { type: 'user', id: member.userId ?? member._id, email: member.email } });
+    await audit(ctx, actor, 'team.seat.assign', { teamId: team._id, target: memberTarget(member) });
     if (opts.notify !== false) await sendKey(ctx, member, team, license);
     return license;
   } catch (error) {
@@ -152,7 +163,7 @@ export async function freeSeat(ctx: Ctx, team: TeamDoc, member: TeamMemberDoc, a
   if (!released) return false;
   await ctx.c.teams.updateOne({ _id: team._id }, { $inc: { seatsUsed: -1 }, $set: { updatedAt: ctx.now() } });
   if (released.licenseId) await revokeLicense(ctx, released.licenseId, reason, actor);
-  await audit(ctx, actor, 'team.seat.free', { teamId: team._id, target: { type: 'user', id: member.userId ?? member._id, email: member.email }, details: { reason } });
+  await audit(ctx, actor, 'team.seat.free', { teamId: team._id, target: memberTarget(member), details: { reason } });
   return true;
 }
 
@@ -167,7 +178,7 @@ async function memberOrThrow(ctx: Ctx, teamId: string, ref: string): Promise<Tea
   return member;
 }
 
-const memberTarget = (m: TeamMemberDoc) => ({ type: 'user' as const, id: m.userId ?? m._id, email: m.email });
+const memberTarget = (m: TeamMemberDoc) => ({ type: 'user' as const, id: m.userId ?? m._id, ...(m.email ? { email: m.email } : {}) });
 
 export async function assignSeatTo(ctx: Ctx, access: TeamAccess, actor: Actor, ref: string): Promise<LicenseDoc> {
   const member = await memberOrThrow(ctx, access.team._id, ref);
@@ -176,13 +187,13 @@ export async function assignSeatTo(ctx: Ctx, access: TeamAccess, actor: Actor, r
 
 export async function freeSeatOf(ctx: Ctx, access: TeamAccess, actor: Actor, ref: string): Promise<void> {
   const member = await memberOrThrow(ctx, access.team._id, ref);
-  if (!(await freeSeat(ctx, access.team, member, actor, 'seat freed by admin'))) throw conflict('no_seat', `${member.email} has no seat.`);
-  await ctx.mailer.send(templates.seatRemoved(member.email, { teamName: access.team.name }));
+  if (!(await freeSeat(ctx, access.team, member, actor, 'seat freed by admin'))) throw conflict('no_seat', `${label(member)} has no seat.`);
+  if (member.email) await ctx.mailer.send(templates.seatRemoved(member.email, { teamName: access.team.name }));
 }
 
 async function currentKey(ctx: Ctx, member: TeamMemberDoc): Promise<LicenseDoc> {
   const key = member.hasSeat && member.licenseId ? await ctx.c.licenses.findOne({ _id: member.licenseId }) : null;
-  if (!key) throw conflict('no_seat', `${member.email} has no seat.`);
+  if (!key) throw conflict('no_seat', `${label(member)} has no seat.`);
   return key;
 }
 
@@ -198,7 +209,7 @@ export async function renewMemberKey(ctx: Ctx, access: TeamAccess, actor: Actor,
   const member = await memberOrThrow(ctx, access.team._id, ref);
   const old = await currentKey(ctx, member);
   const plan = await getTeamPlan(ctx);
-  const fresh = await reissueLicense(ctx, { ...old, payload: { ...old.payload, edition: member.edition, features: member.features } }, actor, plan.durationDays);
+  const fresh = await reissueLicense(ctx, { ...old, memberId: member._id, payload: { ...old.payload, email: keyEmail(member, actor), edition: member.edition, features: member.features } }, actor, plan.durationDays);
   await ctx.c.teamMembers.updateOne({ _id: member._id }, { $set: { licenseId: fresh._id } });
   await audit(ctx, actor, 'team.seat.renew', { teamId: access.team._id, target: memberTarget(member), details: { from: old.payload.expiresAt, to: fresh.payload.expiresAt } });
   if (opts.notify !== false) await sendKey(ctx, member, access.team, fresh);
@@ -223,6 +234,7 @@ export async function renewExpiring(ctx: Ctx, access: TeamAccess, actor: Actor, 
 /** E-mails the member their current key again. */
 export async function sendMemberKey(ctx: Ctx, access: TeamAccess, actor: Actor, ref: string): Promise<void> {
   const member = await memberOrThrow(ctx, access.team._id, ref);
+  if (!member.email) throw badRequest('no_email', `Add an e-mail for ${label(member)} to send them their key.`);
   const key = await currentKey(ctx, member);
   await sendKey(ctx, member, access.team, key);
   await audit(ctx, actor, 'team.key.send', { teamId: access.team._id, target: memberTarget(member) });
@@ -239,7 +251,7 @@ async function replaceMemberKey(
 ): Promise<LicenseDoc> {
   const now = ctx.now();
   const days = licenseStatus(old, now) === 'active' ? remainingDays(old, now) : (await getTeamPlan(ctx)).durationDays;
-  const fresh = await reissueLicense(ctx, { ...old, payload: { ...old.payload, edition, features } }, actor, days);
+  const fresh = await reissueLicense(ctx, { ...old, memberId: member._id, payload: { ...old.payload, email: keyEmail(member, actor), edition, features } }, actor, days);
   await ctx.c.teamMembers.updateOne({ _id: member._id }, { $set: { licenseId: fresh._id } });
   await sendKey(ctx, member, team, fresh);
   return fresh;
@@ -250,9 +262,10 @@ export async function updateMember(
   access: TeamAccess,
   actor: Actor,
   ref: string,
-  patch: { role?: 'admin' | 'member'; edition?: LicenseEdition; features?: string[] },
+  patch: { role?: 'admin' | 'member'; edition?: LicenseEdition; features?: string[]; name?: string; email?: string | null },
 ): Promise<TeamMemberDoc> {
-  const member = await memberOrThrow(ctx, access.team._id, ref);
+  let member = await memberOrThrow(ctx, access.team._id, ref);
+  if (patch.name !== undefined || patch.email !== undefined) member = await updateContact(ctx, access, actor, member, patch);
   const isOwner = access.role === 'owner' || access.role === 'staff';
   if (patch.role && patch.role !== member.role) {
     if (member.role === 'owner') throw badRequest('owner_role', 'Transfer ownership to change the owner’s role.');
@@ -277,6 +290,52 @@ export async function updateMember(
   return (await ctx.c.teamMembers.findOne({ _id: member._id }))!;
 }
 
+/**
+ * Changes the name or e-mail an admin gave someone without an account. Their key is reissued (same term) so it carries
+ * the new e-mail, and, when the address belongs to a confirmed account, the membership links to it.
+ */
+async function updateContact(
+  ctx: Ctx,
+  access: TeamAccess,
+  actor: Actor,
+  member: TeamMemberDoc,
+  patch: { name?: string; email?: string | null },
+): Promise<TeamMemberDoc> {
+  const name = patch.name === undefined ? member.name : patch.name.trim() || undefined;
+  const email = patch.email === undefined ? member.email : patch.email ? normalizeEmail(patch.email) : undefined;
+  if (email !== member.email && member.userId) {
+    throw badRequest('has_account', `${label(member)} has a MotionQL account; their e-mail comes from it.`, { email: 'Set by their account.' });
+  }
+  if (!email && !name) throw badRequest('validation_failed', 'Give a name or an e-mail.', { name: 'Enter a name or an e-mail.' });
+  if (email === member.email && name === member.name) return member;
+  const account = email && email !== member.email ? await ctx.c.users.findOne({ email, emailVerifiedAt: { $exists: true } }) : null;
+  if (account && (await ctx.c.teamMembers.findOne({ teamId: access.team._id, userId: account._id }))) {
+    throw conflict('already_member', `${email} is already on this team.`);
+  }
+  const set = { ...(email ? { email } : {}), ...(name ? { name } : {}), ...(account ? { userId: account._id } : {}) };
+  const unset = { ...(email ? {} : { email: '' as const }), ...(name ? {} : { name: '' as const }) };
+  try {
+    await ctx.c.teamMembers.updateOne({ _id: member._id }, { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}) });
+  } catch (error) {
+    if ((error as { code?: number }).code === 11000) throw conflict('already_member', `${email} is already on this team.`);
+    throw error;
+  }
+  await audit(ctx, actor, 'team.member.contact', {
+    teamId: access.team._id,
+    target: memberTarget(member),
+    details: { ...(email !== member.email ? { email: email ?? null } : {}), ...(name !== member.name ? { name: name ?? null } : {}) },
+  });
+  const updated = (await ctx.c.teamMembers.findOne({ _id: member._id }))!;
+  if (email !== member.email) {
+    const old = updated.hasSeat && updated.licenseId ? await ctx.c.licenses.findOne({ _id: updated.licenseId }) : null;
+    if (old) {
+      const owned = account ? { ...old, userId: account._id } : old;
+      await replaceMemberKey(ctx, access.team, updated, owned, actor, old.payload.edition, old.payload.features);
+    }
+  }
+  return (await ctx.c.teamMembers.findOne({ _id: member._id }))!;
+}
+
 /** An admin removes someone, or a member leaves. The owner must transfer ownership or delete the team instead. */
 export async function removeMember(ctx: Ctx, team: TeamDoc, actor: Actor, ref: string, self: boolean): Promise<void> {
   const member = await memberOrThrow(ctx, team._id, ref);
@@ -284,13 +343,13 @@ export async function removeMember(ctx: Ctx, team: TeamDoc, actor: Actor, ref: s
   const hadSeat = await freeSeat(ctx, team, member, actor, self ? 'left the team' : 'removed from team');
   await ctx.c.teamMembers.deleteOne({ _id: member._id });
   await audit(ctx, actor, self ? 'team.member.leave' : 'team.member.remove', { teamId: team._id, target: memberTarget(member) });
-  if (hadSeat && !self) await ctx.mailer.send(templates.seatRemoved(member.email, { teamName: team.name }));
+  if (hadSeat && !self && member.email) await ctx.mailer.send(templates.seatRemoved(member.email, { teamName: team.name }));
 }
 
 export async function transferOwnership(ctx: Ctx, access: TeamAccess, actor: Actor, ref: string): Promise<void> {
   const member = await memberOrThrow(ctx, access.team._id, ref);
   if (member.role === 'owner') return;
-  if (!member.userId) throw badRequest('no_account', `${member.email} needs a MotionQL account before they can own the team.`);
+  if (!member.userId) throw badRequest('no_account', `${label(member)} needs a MotionQL account before they can own the team.`);
   await ctx.c.teamMembers.updateOne({ teamId: access.team._id, role: 'owner' }, { $set: { role: 'admin' } });
   await ctx.c.teamMembers.updateOne({ _id: member._id }, { $set: { role: 'owner' } });
   await ctx.c.teams.updateOne({ _id: access.team._id }, { $set: { ownerId: member.userId, updatedAt: ctx.now() } });
@@ -338,13 +397,14 @@ export async function requestSeats(ctx: Ctx, access: TeamAccess, actor: Actor, s
 
 // Adding people directly: the admin types e-mails, each person gets a seat and a key, no invitation to accept.
 
+/** At least one of the two: someone added by name only gets a key the admin hands over. */
 export interface NewMember {
-  email: string;
+  email?: string;
   name?: string;
 }
 
 export interface AddResult {
-  added: { memberId: string; email: string; seatAssigned: boolean }[];
+  added: { memberId: string; email?: string; name?: string; seatAssigned: boolean }[];
   skipped: { email: string; reason: 'already_member' }[];
 }
 
@@ -356,12 +416,23 @@ export async function addMembers(
 ): Promise<AddResult> {
   if (input.role === 'admin' && access.role !== 'owner' && access.role !== 'staff') throw forbidden('Only the team owner can add admins.');
   const teamId = access.team._id;
-  const people = [...new Map(input.people.map((p) => [normalizeEmail(p.email), p.name?.trim() || undefined])).entries()];
+  const people: [string | undefined, string | undefined][] = [];
+  const seen = new Set<string>();
+  for (const p of input.people) {
+    const email = p.email?.trim() ? normalizeEmail(p.email) : undefined;
+    const name = p.name?.trim() || undefined;
+    if (!email && !name) throw badRequest('validation_failed', 'Give each person a name or an e-mail.', { members: 'Give each person a name or an e-mail.' });
+    // The same e-mail twice is one person; two people may share a name.
+    if (email && seen.has(email)) continue;
+    if (email) seen.add(email);
+    people.push([email, name]);
+  }
+  const emails = people.flatMap(([email]) => (email ? [email] : []));
   const existing = new Set(
-    (await ctx.c.teamMembers.find({ teamId, email: { $in: people.map(([email]) => email) } }, { projection: { email: 1 } }).toArray()).map((m) => m.email),
+    (await ctx.c.teamMembers.find({ teamId, email: { $in: emails } }, { projection: { email: 1 } }).toArray()).map((m) => m.email),
   );
-  const skipped: AddResult['skipped'] = people.filter(([email]) => existing.has(email)).map(([email]) => ({ email, reason: 'already_member' }));
-  const fresh = people.filter(([email]) => !existing.has(email));
+  const skipped: AddResult['skipped'] = emails.filter((email) => existing.has(email)).map((email) => ({ email, reason: 'already_member' }));
+  const fresh = people.filter(([email]) => !email || !existing.has(email));
   const team = (await ctx.c.teams.findOne({ _id: teamId })) ?? access.team;
   if (input.assignSeat && fresh.length > team.seatLimit - team.seatsUsed) {
     const free = Math.max(0, team.seatLimit - team.seatsUsed);
@@ -372,17 +443,17 @@ export async function addMembers(
   }
   // Only a confirmed address links to an account: anyone can register an e-mail, not everyone can read it.
   const accounts = new Map(
-    (await ctx.c.users.find({ email: { $in: fresh.map(([email]) => email) }, emailVerifiedAt: { $exists: true } }).toArray()).map((u) => [u.email, u]),
+    (await ctx.c.users.find({ email: { $in: fresh.flatMap(([email]) => (email ? [email] : [])) }, emailVerifiedAt: { $exists: true } }).toArray()).map((u) => [u.email, u]),
   );
   const plan = await getTeamPlan(ctx);
   const added: AddResult['added'] = [];
   for (const [email, name] of fresh) {
-    const user = accounts.get(email);
+    const user = email ? accounts.get(email) : undefined;
     const member: TeamMemberDoc = {
       _id: newId('mem'),
       teamId,
       ...(user ? { userId: user._id } : {}),
-      email,
+      ...(email ? { email } : {}),
       ...(name ? { name } : {}),
       role: input.role,
       hasSeat: false,
@@ -394,12 +465,12 @@ export async function addMembers(
     try {
       await ctx.c.teamMembers.insertOne(member);
     } catch (error) {
-      if ((error as { code?: number }).code !== 11000) throw error;
+      if ((error as { code?: number }).code !== 11000 || !email) throw error;
       skipped.push({ email, reason: 'already_member' });
       continue;
     }
     // Adding someone replaces an invitation they had not accepted yet.
-    await ctx.c.invites.deleteMany({ teamId, email });
+    if (email) await ctx.c.invites.deleteMany({ teamId, email });
     await audit(ctx, actor, 'team.member.add', { teamId, target: memberTarget(member), details: { role: input.role, hasAccount: Boolean(user) } });
     let seatAssigned = false;
     if (input.assignSeat) {
@@ -411,7 +482,7 @@ export async function addMembers(
         if (!(error instanceof AppError && error.code === 'seat_limit_reached')) throw error;
       }
     }
-    added.push({ memberId: member._id, email, seatAssigned });
+    added.push({ memberId: member._id, ...(email ? { email } : {}), ...(name ? { name } : {}), seatAssigned });
   }
   return { added, skipped };
 }
@@ -419,19 +490,21 @@ export async function addMembers(
 /** Takes the seat from one member (their key is revoked) and gives it to someone else, added to the team if new. */
 export async function reassignSeat(ctx: Ctx, access: TeamAccess, actor: Actor, ref: string, to: NewMember, sendEmail: boolean): Promise<string> {
   const from = await memberOrThrow(ctx, access.team._id, ref);
-  if (!from.hasSeat) throw conflict('no_seat', `${from.email} has no seat.`);
-  const email = normalizeEmail(to.email);
-  if (email === from.email) throw badRequest('same_member', 'Pick someone else to give the seat to.');
-  const target = await ctx.c.teamMembers.findOne({ teamId: access.team._id, email });
+  if (!from.hasSeat) throw conflict('no_seat', `${label(from)} has no seat.`);
+  const email = to.email?.trim() ? normalizeEmail(to.email) : undefined;
+  const name = to.name?.trim() || undefined;
+  if (!email && !name) throw badRequest('validation_failed', 'Give a name or an e-mail.', { email: 'Enter a name or an e-mail.' });
+  if (email && email === from.email) throw badRequest('same_member', 'Pick someone else to give the seat to.');
+  const target = email ? await ctx.c.teamMembers.findOne({ teamId: access.team._id, email }) : null;
   if (target?.hasSeat) throw conflict('already_has_seat', `${email} already has a seat.`);
   await freeSeat(ctx, access.team, from, actor, 'seat reassigned');
-  await ctx.mailer.send(templates.seatRemoved(from.email, { teamName: access.team.name }));
-  await audit(ctx, actor, 'team.seat.reassign', { teamId: access.team._id, target: memberTarget(from), details: { to: email } });
+  if (from.email) await ctx.mailer.send(templates.seatRemoved(from.email, { teamName: access.team.name }));
+  await audit(ctx, actor, 'team.seat.reassign', { teamId: access.team._id, target: memberTarget(from), details: { to: email ?? name } });
   if (target) {
     await assignSeat(ctx, access.team, target, actor, { notify: sendEmail });
     return target._id;
   }
-  const { added } = await addMembers(ctx, access, actor, { people: [{ email, name: to.name }], role: 'member', assignSeat: true, sendEmail });
+  const { added } = await addMembers(ctx, access, actor, { people: [{ email, name }], role: 'member', assignSeat: true, sendEmail });
   return added[0].memberId;
 }
 
@@ -449,7 +522,10 @@ export async function linkMemberships(ctx: Ctx, user: UserDoc): Promise<void> {
       throw error;
     });
     if (!linked?.modifiedCount) continue;
-    await ctx.c.licenses.updateMany({ teamId: m.teamId, source: 'team', 'payload.email': user.email, userId: { $exists: false } }, { $set: { userId: user._id } });
+    await ctx.c.licenses.updateMany(
+      { teamId: m.teamId, source: 'team', userId: { $exists: false }, $or: [{ memberId: m._id }, { memberId: { $exists: false }, 'payload.email': user.email }] },
+      { $set: { userId: user._id } },
+    );
     await audit(ctx, actorOf(user), 'team.member.link', { teamId: m.teamId, target: { type: 'user', id: user._id, email: user.email } });
   }
 }
@@ -461,7 +537,8 @@ export interface MemberView {
   /** Unset while the person has no MotionQL account. */
   userId?: string;
   hasAccount: boolean;
-  email: string;
+  /** Unset for someone added by name only. */
+  email?: string;
   name: string;
   role: TeamRole;
   hasSeat: boolean;
@@ -500,7 +577,7 @@ export async function listMembers(ctx: Ctx, teamId: string): Promise<MemberView[
       memberId: m._id,
       ...(m.userId ? { userId: m.userId } : {}),
       hasAccount: Boolean(user),
-      email: m.email,
+      ...(m.email ? { email: m.email } : {}),
       name: user?.name ?? m.name ?? '',
       role: m.role,
       hasSeat: m.hasSeat,
@@ -533,6 +610,7 @@ export interface TeamLicenseView extends Omit<LicenseView, 'key' | 'team'> {
   key?: string;
   /** Whether it is the key a member holds now. */
   current: boolean;
+  /** `email` is '' for someone added by name only (their key carries the admin's). */
   assignee: { memberId?: string; email: string; name: string };
   revokeReason?: string;
   replacedBy?: string;
@@ -547,17 +625,18 @@ export async function listTeamLicenses(ctx: Ctx, teamId: string): Promise<TeamLi
   const users = new Map(
     (await ctx.c.users.find({ _id: { $in: members.flatMap((m) => (m.userId ? [m.userId] : [])) } }, { projection: { name: 1 } }).toArray()).map((u) => [u._id, u.name]),
   );
-  const byEmail = new Map(members.map((m) => [m.email, m]));
+  const byId = new Map(members.map((m) => [m._id, m]));
+  const byEmail = new Map(members.flatMap((m) => (m.email ? [[m.email, m] as const] : [])));
   const current = new Set(members.flatMap((m) => (m.licenseId ? [m.licenseId] : [])));
   const now = ctx.now();
   return docs.map((d) => {
     const { key, team: _team, ...view } = licenseView(d, now);
-    const m = byEmail.get(d.payload.email);
+    const m = d.memberId ? byId.get(d.memberId) : byEmail.get(d.payload.email);
     return {
       ...view,
       ...(view.status === 'active' ? { key } : {}),
       current: current.has(d._id),
-      assignee: { ...(m ? { memberId: m._id } : {}), email: d.payload.email, name: (m?.userId ? users.get(m.userId) : undefined) ?? m?.name ?? '' },
+      assignee: { ...(m ? { memberId: m._id } : {}), email: m ? (m.email ?? '') : d.payload.email, name: (m?.userId ? users.get(m.userId) : undefined) ?? m?.name ?? '' },
       ...(d.revokeReason ? { revokeReason: d.revokeReason } : {}),
       ...(d.replacedBy ? { replacedBy: d.replacedBy } : {}),
       ...(d.issuedBy ? { issuedBy: d.issuedBy } : {}),
@@ -572,7 +651,7 @@ export async function licensesCsv(ctx: Ctx, teamId: string): Promise<string> {
   for (const m of members) {
     const l = m.license;
     lines.push(
-      [m.email, m.name, m.role, m.hasAccount ? 'yes' : 'no', l?.status ?? 'no seat', l?.edition, l?.issuedAt, l?.expiresAt, l?.licenseId, l?.status === 'active' ? l.key : '']
+      [m.email ?? '', m.name, m.role, m.hasAccount ? 'yes' : 'no', l?.status ?? 'no seat', l?.edition, l?.issuedAt, l?.expiresAt, l?.licenseId, l?.status === 'active' ? l.key : '']
         .map(csvCell)
         .join(','),
     );

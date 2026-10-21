@@ -62,6 +62,7 @@ export interface IssueOptions {
   durationDays: number;
   userId?: string;
   teamId?: string;
+  memberId?: string;
   actor?: Pick<Actor, 'id' | 'email'>;
 }
 
@@ -96,6 +97,7 @@ export async function issueLicense(ctx: Ctx, opts: IssueOptions): Promise<Licens
     expiresAt: expires,
     ...(opts.userId ? { userId: opts.userId } : {}),
     ...(opts.teamId ? { teamId: opts.teamId } : {}),
+    ...(opts.memberId ? { memberId: opts.memberId } : {}),
     ...(opts.actor ? { issuedBy: opts.actor.email } : {}),
   };
   await ctx.c.licenses.insertOne(doc);
@@ -139,6 +141,7 @@ export async function reissueLicense(ctx: Ctx, old: LicenseDoc, actor: Pick<Acto
     durationDays,
     userId: old.userId,
     teamId: old.teamId,
+    memberId: old.memberId,
     actor,
   });
   await revokeLicense(ctx, old._id, 'reissued', actor, fresh._id);

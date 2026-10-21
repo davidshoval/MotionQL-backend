@@ -85,9 +85,12 @@ export interface TeamMemberDoc {
    * use the key they were sent, and the membership links to their account once they confirm that e-mail.
    */
   userId?: string;
-  /** Lower-cased; unique per team. */
-  email: string;
-  /** The name the admin typed when adding them; the account's own name wins once linked. */
+  /**
+   * Lower-cased; unique per team. Unset for someone the admin added by name only: their key carries the admin's e-mail,
+   * nothing is mailed to them, and the admin hands the key over (or adds an e-mail later).
+   */
+  email?: string;
+  /** The name the admin typed when adding them; the account's own name wins once linked. Always set when there is no e-mail. */
   name?: string;
   role: TeamRole;
   hasSeat: boolean;
@@ -131,6 +134,8 @@ export interface LicenseDoc {
   /** Set when this key was reissued; the new key's id. */
   replacedBy?: string;
   issuedBy?: string;
+  /** The team member a team key was issued to (unset on keys issued before this was recorded). */
+  memberId?: string;
 }
 
 /** Settings the owner changes in the staff console. */
@@ -294,7 +299,7 @@ export function collections(db: Db): Collections {
  * an account, so admins can add people by e-mail. Safe to run on every start.
  */
 async function migrateTeamMembers(c: Collections): Promise<void> {
-  for await (const m of c.teamMembers.find({ email: { $exists: false } }, { projection: { _id: 1, userId: 1 } })) {
+  for await (const m of c.teamMembers.find({ email: { $exists: false }, userId: { $type: 'string' } }, { projection: { _id: 1, userId: 1 } })) {
     const user = m.userId ? await c.users.findOne({ _id: m.userId }, { projection: { email: 1, name: 1 } }) : null;
     if (user) await c.teamMembers.updateOne({ _id: m._id }, { $set: { email: user.email, name: user.name } });
   }
