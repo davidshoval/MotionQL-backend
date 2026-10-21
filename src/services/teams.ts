@@ -610,7 +610,7 @@ export interface TeamLicenseView extends Omit<LicenseView, 'key' | 'team'> {
   key?: string;
   /** Whether it is the key a member holds now. */
   current: boolean;
-  /** `email` is the one in the key: the admin's for someone added without one. */
+  /** `email` is '' for someone added by name only (their key carries the admin's). */
   assignee: { memberId?: string; email: string; name: string };
   revokeReason?: string;
   replacedBy?: string;
@@ -636,7 +636,7 @@ export async function listTeamLicenses(ctx: Ctx, teamId: string): Promise<TeamLi
       ...view,
       ...(view.status === 'active' ? { key } : {}),
       current: current.has(d._id),
-      assignee: { ...(m ? { memberId: m._id } : {}), email: m?.email ?? d.payload.email, name: (m?.userId ? users.get(m.userId) : undefined) ?? m?.name ?? '' },
+      assignee: { ...(m ? { memberId: m._id } : {}), email: m ? (m.email ?? '') : d.payload.email, name: (m?.userId ? users.get(m.userId) : undefined) ?? m?.name ?? '' },
       ...(d.revokeReason ? { revokeReason: d.revokeReason } : {}),
       ...(d.replacedBy ? { replacedBy: d.replacedBy } : {}),
       ...(d.issuedBy ? { issuedBy: d.issuedBy } : {}),

@@ -142,7 +142,7 @@ describe('people without an e-mail', () => {
     // The inventory names the person, not the admin whose e-mail is in the key, and the admin's own key stays theirs.
     const licenses = (await owner.get(`/teams/${teamId}/licenses`)).json().licenses as { assignee: { memberId?: string; name: string; email: string } }[];
     expect(licenses.filter((l) => l.assignee.memberId === a.memberId)).toHaveLength(1);
-    expect(licenses.find((l) => l.assignee.memberId === a.memberId)!.assignee.name).toBe('Lab PC 3');
+    expect(licenses.find((l) => l.assignee.memberId === a.memberId)!.assignee).toMatchObject({ name: 'Lab PC 3', email: '' });
     expect(licenses.filter((l) => l.assignee.name === 'Ivy IT')).toHaveLength(1);
     expect((await owner.get('/me/licenses')).json().licenses.filter((l: { source: string }) => l.source === 'team')).toHaveLength(1);
 
